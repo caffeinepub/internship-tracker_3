@@ -12,12 +12,10 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Search, ShieldCheck, XCircle } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View__1 } from "../../backend";
+import type { View__2 } from "../../backend";
 import { useActor } from "../../hooks/useActor";
-
-type InternWithKey = View__1 & { key: string };
 
 function statusBadge(status: string) {
   if (status === "active")
@@ -54,11 +52,11 @@ function InternTable({
   actionLoading,
   searchQuery,
 }: {
-  interns: InternWithKey[];
+  interns: View__2[];
   loading: boolean;
-  onApprove?: (_key: string) => void;
-  onReject?: (_key: string) => void;
-  onPromote?: (_key: string) => void;
+  onApprove?: (_principal: string) => void;
+  onReject?: (_principal: string) => void;
+  onPromote?: (_principal: string) => void;
   actionLoading: string | null;
   searchQuery: string;
 }) {
@@ -80,7 +78,10 @@ function InternTable({
 
   if (filtered.length === 0) {
     return (
-      <div className="p-10 text-center text-muted-foreground text-sm">
+      <div
+        className="p-10 text-center text-muted-foreground text-sm"
+        data-ocid="interns.empty_state"
+      >
         No interns found
       </div>
     );
@@ -88,7 +89,7 @@ function InternTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table>
+      <Table data-ocid="interns.table">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -100,78 +101,87 @@ function InternTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((intern) => (
-            <TableRow key={intern.key}>
-              <TableCell className="font-medium">{intern.name}</TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {intern.email}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-sm max-w-[160px] truncate">
-                {intern.bio || "—"}
-              </TableCell>
-              <TableCell>
-                <div className="flex flex-wrap gap-1">
-                  {intern.skills.length > 0 ? (
-                    intern.skills.slice(0, 3).map((s) => (
-                      <Badge key={s} variant="secondary" className="text-xs">
-                        {s}
+          {filtered.map((intern, idx) => {
+            const principalStr = intern.principal.toString();
+            return (
+              <TableRow
+                key={principalStr}
+                data-ocid={`interns.item.${idx + 1}`}
+              >
+                <TableCell className="font-medium">{intern.name}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {intern.email}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm max-w-[160px] truncate">
+                  {intern.bio || "—"}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {intern.skills.length > 0 ? (
+                      intern.skills.slice(0, 3).map((s) => (
+                        <Badge key={s} variant="secondary" className="text-xs">
+                          {s}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                    {intern.skills.length > 3 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{intern.skills.length - 3}
                       </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                  {intern.skills.length > 3 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{intern.skills.length - 3}
-                    </Badge>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                {statusBadge(intern.registrationStatus as string)}
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  {onApprove && intern.registrationStatus !== "active" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-success hover:text-success hover:bg-success/10"
-                      onClick={() => onApprove(intern.key)}
-                      disabled={actionLoading === intern.key}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                      Approve
-                    </Button>
-                  )}
-                  {onReject && intern.registrationStatus !== "rejected" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => onReject(intern.key)}
-                      disabled={actionLoading === intern.key}
-                    >
-                      <XCircle className="h-3.5 w-3.5 mr-1" />
-                      Reject
-                    </Button>
-                  )}
-                  {onPromote && intern.registrationStatus === "active" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs hover:bg-accent/10"
-                      onClick={() => onPromote(intern.key)}
-                      disabled={actionLoading === intern.key}
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                      Make Admin
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {statusBadge(intern.registrationStatus as string)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1.5">
+                    {onApprove && intern.registrationStatus !== "active" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-success hover:text-success hover:bg-success/10"
+                        onClick={() => onApprove(principalStr)}
+                        disabled={actionLoading === principalStr}
+                        data-ocid={`interns.confirm_button.${idx + 1}`}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                        Approve
+                      </Button>
+                    )}
+                    {onReject && intern.registrationStatus !== "rejected" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => onReject(principalStr)}
+                        disabled={actionLoading === principalStr}
+                        data-ocid={`interns.delete_button.${idx + 1}`}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" />
+                        Reject
+                      </Button>
+                    )}
+                    {onPromote && intern.registrationStatus === "active" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs hover:bg-accent/10"
+                        onClick={() => onPromote(principalStr)}
+                        disabled={actionLoading === principalStr}
+                        data-ocid={`interns.secondary_button.${idx + 1}`}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                        Make Admin
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -180,12 +190,12 @@ function InternTable({
 
 export default function InternsPage() {
   const { actor } = useActor();
-  const [allInterns, setAllInterns] = useState<InternWithKey[]>([]);
-  const [pendingInterns, setPendingInterns] = useState<InternWithKey[]>([]);
-  const [activeInterns, setActiveInterns] = useState<InternWithKey[]>([]);
-  const [rejectedInterns, setRejectedInterns] = useState<InternWithKey[]>([]);
+  const [allInterns, setAllInterns] = useState<View__2[]>([]);
+  const [pendingInterns, setPendingInterns] = useState<View__2[]>([]);
+  const [activeInterns, setActiveInterns] = useState<View__2[]>([]);
+  const [rejectedInterns, setRejectedInterns] = useState<View__2[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
@@ -198,12 +208,10 @@ export default function InternsPage() {
         actor.getAllInterns(),
         actor.getAllRejectedInterns(),
       ]);
-      const makeKeyed = (list: View__1[]): InternWithKey[] =>
-        list.map((i, idx) => ({ ...i, key: `${i.email}-${idx}` }));
-      setAllInterns(makeKeyed(all));
-      setPendingInterns(makeKeyed(pending));
-      setActiveInterns(makeKeyed(active));
-      setRejectedInterns(makeKeyed(rejected));
+      setAllInterns(all);
+      setPendingInterns(pending);
+      setActiveInterns(active);
+      setRejectedInterns(rejected);
     } catch {
       toast.error("Failed to load interns");
     } finally {
@@ -215,22 +223,64 @@ export default function InternsPage() {
     load();
   }, [load]);
 
-  const handleApprove = async (_key: string) => {
-    toast.info(
-      "Approve action requires Principal lookup — not available in this view. Coming in a future phase.",
-    );
+  const handleApprove = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const intern = allInterns.find(
+        (i) => i.principal.toString() === principalStr,
+      );
+      if (!intern) return;
+      await actor.approveInternRegistration(intern.principal);
+      toast.success("Intern approved successfully");
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to approve intern",
+      );
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleReject = async (_key: string) => {
-    toast.info(
-      "Reject action requires Principal lookup — not available in this view. Coming in a future phase.",
-    );
+  const handleReject = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const intern = allInterns.find(
+        (i) => i.principal.toString() === principalStr,
+      );
+      if (!intern) return;
+      await actor.rejectInternRegistration(intern.principal);
+      toast.success("Intern rejected");
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to reject intern",
+      );
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handlePromote = async (_key: string) => {
-    toast.info(
-      "Promote action requires Principal lookup — not available in this view. Coming in a future phase.",
-    );
+  const handlePromote = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const intern = allInterns.find(
+        (i) => i.principal.toString() === principalStr,
+      );
+      if (!intern) return;
+      await actor.promoteToAdmin(intern.principal);
+      toast.success("Intern promoted to admin");
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to promote intern",
+      );
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const tableProps = {
@@ -262,12 +312,13 @@ export default function InternsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
+          data-ocid="interns.search_input"
         />
       </div>
 
       <Tabs defaultValue="pending">
         <TabsList>
-          <TabsTrigger value="pending">
+          <TabsTrigger value="pending" data-ocid="interns.tab">
             Pending
             {!loading && pendingInterns.length > 0 && (
               <Badge className="ml-1.5 h-4 w-4 p-0 text-xs flex items-center justify-center bg-warning/20 text-warning border-0">
@@ -275,9 +326,15 @@ export default function InternsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="active" data-ocid="interns.tab">
+            Active
+          </TabsTrigger>
+          <TabsTrigger value="rejected" data-ocid="interns.tab">
+            Rejected
+          </TabsTrigger>
+          <TabsTrigger value="all" data-ocid="interns.tab">
+            All
+          </TabsTrigger>
         </TabsList>
         <div className="mt-4 border border-border rounded-lg overflow-hidden bg-card">
           <TabsContent value="pending" className="m-0">

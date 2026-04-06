@@ -1,27 +1,40 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
+  Activity,
   FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   UserCircle,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import MessagesPage from "../pages/MessagesPage";
+import ActivityLogPage from "../pages/intern/ActivityLogPage";
 import InternDashboard from "../pages/intern/InternDashboard";
 import InternProfilePage from "../pages/intern/InternProfilePage";
 import MyProjectPage from "../pages/intern/MyProjectPage";
 
-type InternPage = "dashboard" | "projects" | "profile";
+type InternPage =
+  | "dashboard"
+  | "projects"
+  | "activity"
+  | "messages"
+  | "profile";
 
 const navItems: { page: InternPage; label: string; icon: React.ElementType }[] =
   [
     { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { page: "projects", label: "My Projects", icon: FolderKanban },
+    { page: "activity", label: "Activity Log", icon: Activity },
+    { page: "messages", label: "Messages", icon: MessageSquare },
     { page: "profile", label: "Profile", icon: UserCircle },
   ];
 
@@ -29,10 +42,12 @@ function SidebarContent({
   currentPage,
   onNavigate,
   onClose,
+  unreadCount,
 }: {
   currentPage: InternPage;
   onNavigate: (page: InternPage) => void;
   onClose?: () => void;
+  unreadCount: number;
 }) {
   const { clear } = useInternetIdentity();
   const { profile } = useAuth();
@@ -70,9 +85,15 @@ function SidebarContent({
                 ? "bg-sidebar-primary text-sidebar-primary-foreground"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             )}
+            data-ocid={`intern.nav.${item.page}.link`}
           >
             <item.icon className="h-4 w-4 flex-shrink-0" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.page === "messages" && unreadCount > 0 && (
+              <Badge className="h-4 min-w-4 px-1 text-[10px] bg-destructive text-destructive-foreground">
+                {unreadCount}
+              </Badge>
+            )}
           </button>
         ))}
       </nav>
@@ -98,6 +119,7 @@ function SidebarContent({
             }}
             className="p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             title="Sign out"
+            data-ocid="intern.nav.logout.button"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -108,8 +130,26 @@ function SidebarContent({
 }
 
 export default function InternShell() {
+  const { actor } = useActor();
   const [currentPage, setCurrentPage] = useState<InternPage>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const count = await actor.getUnreadCount();
+      setUnreadCount(Number(count));
+    } catch {
+      // silent
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -117,6 +157,10 @@ export default function InternShell() {
         return <InternDashboard />;
       case "projects":
         return <MyProjectPage />;
+      case "activity":
+        return <ActivityLogPage />;
+      case "messages":
+        return <MessagesPage />;
       case "profile":
         return <InternProfilePage />;
     }
@@ -125,7 +169,11 @@ export default function InternShell() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <aside className="hidden lg:flex w-60 flex-shrink-0 flex-col border-r border-border">
-        <SidebarContent currentPage={currentPage} onNavigate={setCurrentPage} />
+        <SidebarContent
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          unreadCount={unreadCount}
+        />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -134,6 +182,7 @@ export default function InternShell() {
             currentPage={currentPage}
             onNavigate={setCurrentPage}
             onClose={() => setMobileOpen(false)}
+            unreadCount={unreadCount}
           />
         </SheetContent>
       </Sheet>

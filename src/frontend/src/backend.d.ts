@@ -8,11 +8,30 @@ export interface None {
 }
 export type Option<T> = Some<T> | None;
 export interface View__1 {
+    id: bigint;
+    content: string;
+    recipient: Principal;
+    isRead: boolean;
+    sender: Principal;
+    timestamp: bigint;
+}
+export interface View__2 {
     bio: string;
+    principal: Principal;
     name: string;
     email: string;
     registrationStatus: Type__1;
     skills: Array<string>;
+}
+export interface View__3 {
+    id: bigint;
+    internPrincipal: Principal;
+    title: string;
+    hours: bigint;
+    date: string;
+    createdAt: bigint;
+    description: string;
+    projectId: bigint;
 }
 export interface View {
     id: bigint;
@@ -51,19 +70,27 @@ export interface backendInterface {
         description: string;
         startDate: string;
     }): Promise<View>;
-    getAllInterns(): Promise<Array<View__1>>;
-    getAllPendingInterns(): Promise<Array<View__1>>;
+    getActivitiesForIntern(intern: Principal): Promise<Array<View__3>>;
+    getActivitiesForProject(projectId: bigint): Promise<Array<View__3>>;
+    getAllActivities(): Promise<Array<View__3>>;
+    getAllInterns(): Promise<Array<View__2>>;
+    getAllPendingInterns(): Promise<Array<View__2>>;
     getAllProjects(): Promise<Array<View>>;
-    getAllRejectedInterns(): Promise<Array<View__1>>;
-    getAllUsers(): Promise<Array<View__1>>;
-    getCallerUserProfile(): Promise<View__1 | null>;
+    getAllRejectedInterns(): Promise<Array<View__2>>;
+    getAllUsers(): Promise<Array<View__2>>;
+    getCallerUserProfile(): Promise<View__2 | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConversation(otherUser: Principal): Promise<Array<View__1>>;
+    getMessagesForCaller(): Promise<Array<View__1>>;
     getProject(id: bigint): Promise<View | null>;
     getProjectsByStatus(status: Type): Promise<Array<View>>;
     getProjectsForIntern(intern: Principal): Promise<Array<View>>;
-    getUserProfile(user: Principal): Promise<View__1 | null>;
+    getUnreadCount(): Promise<bigint>;
+    getUserProfile(user: Principal): Promise<View__2 | null>;
     getUserRole(user: Principal): Promise<Type__2>;
     isCallerAdmin(): Promise<boolean>;
+    logActivity(projectId: bigint, title: string, description: string, date: string, hours: bigint): Promise<View__3>;
+    markMessageRead(messageId: bigint): Promise<void>;
     promoteToAdmin(user: Principal): Promise<void>;
     registerIntern(arg0: {
         bio: string;
@@ -72,7 +99,8 @@ export interface backendInterface {
     }): Promise<void>;
     rejectInternRegistration(userPrincipal: Principal): Promise<void>;
     removeProject(id: bigint): Promise<void>;
-    saveCallerUserProfile(profile: View__1): Promise<void>;
+    saveCallerUserProfile(profile: View__2): Promise<void>;
+    sendMessage(recipient: Principal, content: string): Promise<View__1>;
     unassignInternFromProject(arg0: {
         internPrincipal: Principal;
         projectId: bigint;

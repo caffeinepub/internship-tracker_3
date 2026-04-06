@@ -26,6 +26,7 @@ actor {
       skills : Set.Set<Text>;
     };
     public type View = {
+      principal : Principal;
       name : Text;
       bio : Text;
       email : Text;
@@ -42,9 +43,10 @@ actor {
         Text.compare(a.name, b.name);
       };
     };
-    public func toView(profile : Type) : View {
+    public func toView(profile : Type, principal : Principal) : View {
       {
         profile with
+        principal;
         skills = profile.skills.toArray();
       };
     };
@@ -78,23 +80,66 @@ actor {
       };
     };
   };
+  module ActivityLog {
+    public type Type = {
+      id : Nat;
+      internPrincipal : Principal;
+      projectId : Nat;
+      title : Text;
+      description : Text;
+      date : Text;
+      hours : Nat;
+      createdAt : Int;
+    };
+    public type View = {
+      id : Nat;
+      internPrincipal : Principal;
+      projectId : Nat;
+      title : Text;
+      description : Text;
+      date : Text;
+      hours : Nat;
+      createdAt : Int;
+    };
+  };
+  module Message {
+    public type Type = {
+      id : Nat;
+      sender : Principal;
+      recipient : Principal;
+      content : Text;
+      timestamp : Int;
+      isRead : Bool;
+    };
+    public type View = {
+      id : Nat;
+      sender : Principal;
+      recipient : Principal;
+      content : Text;
+      timestamp : Int;
+      isRead : Bool;
+    };
+  };
   module RegistrationStatus {
     public type Type = { #pending; #active; #rejected };
   };
 
   // --- Persistent State ---
-  let accessControlState = AccessControl.initState(); // = initialization includes role-based access control, ready to use in actor
+  let accessControlState = AccessControl.initState();
 
-  include MixinAuthorization(accessControlState); // = includes authentication, protected by default for new users
+  include MixinAuthorization(accessControlState);
 
   var nextProjectId = 1;
+  var nextActivityId = 1;
+  var nextMessageId = 1;
   var lastActivityTime : ?Int = null;
 
   let userProfiles = Map.empty<Principal, UserProfile.Type>();
   let projects = Map.empty<Nat, Project.Type>();
+  let activityLogs = Map.empty<Nat, ActivityLog.Type>();
+  let messages = Map.empty<Nat, Message.Type>();
 
   // --- Project CRUD Functions ---
-  // Immutable project creation in persistent state
   func createProjectInternal(title : Text, description : Text, startDate : Text, endDate : Text) : Project.Type {
     let newProject : Project.Type = {
       id = nextProjectId;
@@ -116,6 +161,7 @@ actor {
     };
     Project.toView(createProjectInternal(title, description, startDate, endDate));
   };
+
   func getProjectById(id : Nat) : Project.Type {
     switch (projects.get(id)) {
       case (null) { Runtime.trap("Project not found") };
@@ -126,6 +172,7 @@ actor {
   func updateProjectInternal(project : Project.Type) {
     projects.add(project.id, project);
   };
+
   public shared ({ caller }) func updateProject(project : Project.View) : async () {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can update projects");
@@ -174,6 +221,143 @@ actor {
       assignedInterns = updatedAssignedInterns;
     };
     updateProjectInternal(updatedProject);
+  };
+
+  // --- Activity Log Functions ---
+  func createActivityLogInternal(caller : Principal, projectId : Nat, title : Text, description : Text, date : Text, hours : Nat) : ActivityLog.Type {
+    let newLog : ActivityLog.Type = {
+      id = nextActivityId;
+      internPrincipal = caller;
+      projectId;
+      title;
+      description;
+      date;
+      hours;
+      createdAt = Time.now();
+    };
+    activityLogs.add(nextActivityId, newLog);
+    nextActivityId += 1;
+    newLog;
+  };
+
+  public shared ({ caller }) func logActivity(projectId : Nat, title : Text, description : Text, date : Text, hours : Nat) : async ActivityLog.View {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only interns can log activities");
+    };
+    createActivityLogInternal(caller, projectId, title, description, date, hours);
+  };
+
+  public query ({ caller }) func getActivitiesForIntern(intern : Principal) : async [ActivityLog.View] {
+    if (caller != intern and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own activities");
+    };
+    let filteredResults = List.empty<ActivityLog.Type>();
+    for (log in activityLogs.values()) {
+      if (log.internPrincipal == intern) {
+        filteredResults.add(log);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public query ({ caller }) func getActivitiesForProject(projectId : Nat) : async [ActivityLog.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view project activities");
+    };
+    let project = getProjectById(projectId);
+    if (not project.assignedInterns.contains(caller) and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You are not assigned to this project");
+    };
+    let filteredResults = List.empty<ActivityLog.Type>();
+    for (log in activityLogs.values()) {
+      if (log.projectId == projectId) {
+        filteredResults.add(log);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public query ({ caller }) func getAllActivities() : async [ActivityLog.View] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all activities");
+    };
+    activityLogs.values().toArray();
+  };
+
+  // --- Messaging Functions ---
+  func createMessageInternal(caller : Principal, recipient : Principal, content : Text) : Message.Type {
+    let newMessage : Message.Type = {
+      id = nextMessageId;
+      sender = caller;
+      recipient;
+      content;
+      timestamp = Time.now();
+      isRead = false;
+    };
+    messages.add(nextMessageId, newMessage);
+    nextMessageId += 1;
+    newMessage;
+  };
+
+  public shared ({ caller }) func sendMessage(recipient : Principal, content : Text) : async Message.View {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can send messages");
+    };
+    createMessageInternal(caller, recipient, content);
+  };
+
+  public query ({ caller }) func getMessagesForCaller() : async [Message.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view messages");
+    };
+    let filteredResults = List.empty<Message.Type>();
+    for (message in messages.values()) {
+      if (message.sender == caller or message.recipient == caller) {
+        filteredResults.add(message);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public query ({ caller }) func getConversation(otherUser : Principal) : async [Message.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view conversations");
+    };
+    let filteredResults = List.empty<Message.Type>();
+    for (message in messages.values()) {
+      if ((message.sender == caller and message.recipient == otherUser) or (message.sender == otherUser and message.recipient == caller)) {
+        filteredResults.add(message);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public shared ({ caller }) func markMessageRead(messageId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can mark messages as read");
+    };
+    switch (messages.get(messageId)) {
+      case (null) { Runtime.trap("Message not found") };
+      case (?message) {
+        if (message.recipient != caller) {
+          Runtime.trap("Unauthorized: Only the recipient can mark messages as read");
+        };
+        messages.add(messageId, { message with isRead = true });
+      };
+    };
+  };
+
+  public query ({ caller }) func getUnreadCount() : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can get unread count");
+    };
+    var count = 0;
+    for (message in messages.values()) {
+      if (message.recipient == caller and not message.isRead) {
+        count += 1;
+      };
+    };
+    count;
   };
 
   // --- Intern Registration Functions ---
@@ -259,17 +443,19 @@ actor {
   };
 
   func getAllUserProfilesInternal() : [UserProfile.View] {
-    userProfiles.values().toArray().map(UserProfile.toView).sort(UserProfile.ViewCompare.compareByName);
+    userProfiles.entries().toArray().map(
+      func((p, u)) { UserProfile.toView(u, p) }
+    ).sort(UserProfile.ViewCompare.compareByName);
   };
 
   func getUsersByRegistrationStatus(status : RegistrationStatus.Type) : [UserProfile.View] {
-    let filteredResults = List.empty<UserProfile.Type>();
-    for (user in userProfiles.values()) {
+    let filteredResults = List.empty<(Principal, UserProfile.Type)>();
+    for ((principal, user) in userProfiles.entries()) {
       if (user.registrationStatus == status) {
-        filteredResults.add(user);
+        filteredResults.add((principal, user));
       };
     };
-    filteredResults.toArray().map(UserProfile.toView);
+    filteredResults.toArray().map(func((p, u)) { UserProfile.toView(u, p) }).sort(UserProfile.ViewCompare.compareByName);
   };
 
   public query ({ caller }) func getAllProjects() : async [Project.View] {
@@ -316,14 +502,14 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can view profiles");
     };
-    userProfiles.get(caller).map(UserProfile.toView);
+    userProfiles.get(caller).map(func(p) { UserProfile.toView(p, caller) });
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile.View {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
-    userProfiles.get(user).map(UserProfile.toView);
+    userProfiles.get(user).map(func(p) { UserProfile.toView(p, user) });
   };
 
   public query ({ caller }) func getUserRole(user : Principal) : async UserRole.Type {
@@ -344,13 +530,13 @@ actor {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can view all interns");
     };
-    let filteredResults = List.empty<UserProfile.Type>();
-    for (user in userProfiles.values()) {
+    let filteredResults = List.empty<(Principal, UserProfile.Type)>();
+    for ((principal, user) in userProfiles.entries()) {
       if (user.registrationStatus == #active) {
-        filteredResults.add(user);
+        filteredResults.add((principal, user));
       };
     };
-    filteredResults.toArray().map(UserProfile.toView);
+    filteredResults.toArray().map(func((p, u)) { UserProfile.toView(u, p) }).sort(UserProfile.ViewCompare.compareByName);
   };
 
   public query ({ caller }) func getAllPendingInterns() : async [UserProfile.View] {

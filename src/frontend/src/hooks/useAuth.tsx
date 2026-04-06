@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import type { UserRole, View__1 } from "../backend";
+import type { UserRole, View__2 } from "../backend";
 import { useActor } from "./useActor";
 import { useInternetIdentity } from "./useInternetIdentity";
 
@@ -21,7 +21,7 @@ export type AppRole =
 
 interface AuthState {
   appRole: AppRole;
-  profile: View__1 | null;
+  profile: View__2 | null;
   userRole: UserRole | null;
   refresh: () => void;
 }
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { actor, isFetching } = useActor();
   const { identity, isInitializing } = useInternetIdentity();
   const [appRole, setAppRole] = useState<AppRole>("loading");
-  const [profile, setProfile] = useState<View__1 | null>(null);
+  const [profile, setProfile] = useState<View__2 | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
 
   // A counter used as a manual trigger to re-run the auth effect

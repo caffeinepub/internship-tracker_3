@@ -10,9 +10,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Activity, Clock, FolderKanban, Users } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View__1 } from "../../backend";
+import type { View__2 } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 
 export default function AdminDashboard() {
@@ -23,7 +23,7 @@ export default function AdminDashboard() {
     totalProjects: 0,
     activeProjects: 0,
   });
-  const [pending, setPending] = useState<View__1[]>([]);
+  const [pending, setPending] = useState<View__2[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
               </TableHeader>
               <TableBody>
                 {pending.map((intern) => (
-                  <TableRow key={intern.email}>
+                  <TableRow key={intern.principal.toString()}>
                     <TableCell className="font-medium">{intern.name}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {intern.email}

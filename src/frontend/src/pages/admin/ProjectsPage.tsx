@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -27,12 +29,13 @@ import {
   Pencil,
   Plus,
   Trash2,
+  UserPlus,
   Users,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View } from "../../backend";
+import type { View, View__2 } from "../../backend";
 import { Type } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 
@@ -58,6 +61,171 @@ function ProjectStatusBadge({ status }: { status: Type }) {
 
 const emptyForm = { title: "", description: "", startDate: "", endDate: "" };
 
+function AssignInternsDialog({
+  project,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  project: View;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const { actor } = useActor();
+  const [allInterns, setAllInterns] = useState<View__2[]>([]);
+  const [loadingInterns, setLoadingInterns] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!open || !actor) return;
+    setLoadingInterns(true);
+    actor
+      .getAllInterns()
+      .then((interns) => {
+        setAllInterns(interns);
+        const currentlyAssigned = new Set(
+          project.assignedInterns.map((p) => p.toString()),
+        );
+        setSelected(currentlyAssigned);
+      })
+      .catch(() => toast.error("Failed to load interns"))
+      .finally(() => setLoadingInterns(false));
+  }, [open, actor, project.assignedInterns]);
+
+  const toggleIntern = (principalStr: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(principalStr)) {
+        next.delete(principalStr);
+      } else {
+        next.add(principalStr);
+      }
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!actor) return;
+    setSaving(true);
+    try {
+      const originalAssigned = new Set(
+        project.assignedInterns.map((p) => p.toString()),
+      );
+
+      const toAdd = allInterns.filter(
+        (i) =>
+          selected.has(i.principal.toString()) &&
+          !originalAssigned.has(i.principal.toString()),
+      );
+      const toRemove = allInterns.filter(
+        (i) =>
+          !selected.has(i.principal.toString()) &&
+          originalAssigned.has(i.principal.toString()),
+      );
+
+      await Promise.all([
+        ...toAdd.map((i) =>
+          actor.assignInternToProject({
+            internPrincipal: i.principal,
+            projectId: project.id,
+          }),
+        ),
+        ...toRemove.map((i) =>
+          actor.unassignInternFromProject({
+            internPrincipal: i.principal,
+            projectId: project.id,
+          }),
+        ),
+      ]);
+
+      toast.success("Intern assignments saved");
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save assignments",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" data-ocid="projects.dialog">
+        <DialogHeader>
+          <DialogTitle>Assign Interns</DialogTitle>
+          <DialogDescription>
+            Select interns to assign to &ldquo;{project.title}&rdquo;
+          </DialogDescription>
+        </DialogHeader>
+
+        {loadingInterns ? (
+          <div className="space-y-2 py-2">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : allInterns.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No active interns available
+          </p>
+        ) : (
+          <ScrollArea className="h-64">
+            <div className="space-y-1 pr-3">
+              {allInterns.map((intern) => {
+                const principalStr = intern.principal.toString();
+                return (
+                  <button
+                    key={principalStr}
+                    type="button"
+                    className="w-full flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer text-left"
+                    onClick={() => toggleIntern(principalStr)}
+                  >
+                    <Checkbox
+                      checked={selected.has(principalStr)}
+                      onCheckedChange={() => toggleIntern(principalStr)}
+                      data-ocid="projects.checkbox"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {intern.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {intern.email}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-ocid="projects.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving || loadingInterns}
+            data-ocid="projects.save_button"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            {saving ? "Saving..." : "Save Assignments"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ProjectsPage() {
   const { actor } = useActor();
   const [projects, setProjects] = useState<View[]>([]);
@@ -66,6 +234,7 @@ export default function ProjectsPage() {
   const [deleteLoading, setDeleteLoading] = useState<bigint | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editProject, setEditProject] = useState<View | null>(null);
+  const [assignProject, setAssignProject] = useState<View | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState<View | null>(null);
 
@@ -163,12 +332,16 @@ export default function ProjectsPage() {
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
+            <Button
+              size="sm"
+              className="gap-2"
+              data-ocid="projects.open_modal_button"
+            >
               <Plus className="h-4 w-4" />
               New Project
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" data-ocid="projects.dialog">
             <DialogHeader>
               <DialogTitle>Create Project</DialogTitle>
               <DialogDescription>
@@ -184,6 +357,7 @@ export default function ProjectsPage() {
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="Project title"
                   required
+                  data-ocid="projects.input"
                 />
               </div>
               <div className="space-y-1.5">
@@ -196,6 +370,7 @@ export default function ProjectsPage() {
                   }
                   placeholder="Project description"
                   rows={3}
+                  data-ocid="projects.textarea"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -227,10 +402,15 @@ export default function ProjectsPage() {
                   type="button"
                   variant="outline"
                   onClick={() => setCreateOpen(false)}
+                  data-ocid="projects.cancel_button"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  data-ocid="projects.submit_button"
+                >
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {saving ? "Creating..." : "Create"}
                 </Button>
@@ -250,7 +430,7 @@ export default function ProjectsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" data-ocid="projects.dialog">
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
@@ -264,6 +444,7 @@ export default function ProjectsPage() {
                     setEditForm({ ...editForm, title: e.target.value })
                   }
                   required
+                  data-ocid="projects.input"
                 />
               </div>
               <div className="space-y-1.5">
@@ -274,6 +455,7 @@ export default function ProjectsPage() {
                     setEditForm({ ...editForm, description: e.target.value })
                   }
                   rows={3}
+                  data-ocid="projects.textarea"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -306,7 +488,7 @@ export default function ProjectsPage() {
                     setEditForm({ ...editForm, status: val as Type })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger data-ocid="projects.select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -324,10 +506,15 @@ export default function ProjectsPage() {
                     setEditProject(null);
                     setEditForm(null);
                   }}
+                  data-ocid="projects.cancel_button"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  data-ocid="projects.save_button"
+                >
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>
@@ -337,6 +524,18 @@ export default function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Assign Interns Dialog */}
+      {assignProject && (
+        <AssignInternsDialog
+          project={assignProject}
+          open={!!assignProject}
+          onOpenChange={(open) => {
+            if (!open) setAssignProject(null);
+          }}
+          onSaved={load}
+        />
+      )}
+
       {/* Project List */}
       {loading ? (
         <div className="space-y-3">
@@ -345,7 +544,10 @@ export default function ProjectsPage() {
           ))}
         </div>
       ) : projects.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-12 text-center">
+        <div
+          className="border border-dashed border-border rounded-lg p-12 text-center"
+          data-ocid="projects.empty_state"
+        >
           <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center mx-auto">
             <FolderKanban
               className="h-5 w-5 text-muted-foreground"
@@ -358,10 +560,11 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {projects.map((project) => (
+          {projects.map((project, idx) => (
             <div
               key={String(project.id)}
               className="bg-card border border-border rounded-lg p-5 shadow-card"
+              data-ocid={`projects.item.${idx + 1}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0 space-y-1.5">
@@ -394,8 +597,20 @@ export default function ProjectsPage() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    onClick={() => setAssignProject(project)}
+                    className="h-8 text-xs"
+                    title="Assign interns"
+                    data-ocid={`projects.secondary_button.${idx + 1}`}
+                  >
+                    <UserPlus className="h-3.5 w-3.5 mr-1" />
+                    Assign
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleEdit(project)}
                     className="h-8"
+                    data-ocid={`projects.edit_button.${idx + 1}`}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -405,6 +620,7 @@ export default function ProjectsPage() {
                     onClick={() => handleDelete(project.id)}
                     disabled={deleteLoading === project.id}
                     className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    data-ocid={`projects.delete_button.${idx + 1}`}
                   >
                     {deleteLoading === project.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

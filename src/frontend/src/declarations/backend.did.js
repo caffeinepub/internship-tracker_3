@@ -27,17 +27,36 @@ export const View = IDL.Record({
   'description' : IDL.Text,
   'startDate' : IDL.Text,
 });
+export const View__3 = IDL.Record({
+  'id' : IDL.Nat,
+  'internPrincipal' : IDL.Principal,
+  'title' : IDL.Text,
+  'hours' : IDL.Nat,
+  'date' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'description' : IDL.Text,
+  'projectId' : IDL.Nat,
+});
 export const Type__1 = IDL.Variant({
   'active' : IDL.Null,
   'pending' : IDL.Null,
   'rejected' : IDL.Null,
 });
-export const View__1 = IDL.Record({
+export const View__2 = IDL.Record({
   'bio' : IDL.Text,
+  'principal' : IDL.Principal,
   'name' : IDL.Text,
   'email' : IDL.Text,
   'registrationStatus' : Type__1,
   'skills' : IDL.Vec(IDL.Text),
+});
+export const View__1 = IDL.Record({
+  'id' : IDL.Nat,
+  'content' : IDL.Text,
+  'recipient' : IDL.Principal,
+  'isRead' : IDL.Bool,
+  'sender' : IDL.Principal,
+  'timestamp' : IDL.Int,
 });
 export const Type__2 = IDL.Variant({
   'admin' : IDL.Null,
@@ -71,13 +90,26 @@ export const idlService = IDL.Service({
       [View],
       [],
     ),
-  'getAllInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-  'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
+  'getActivitiesForIntern' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Vec(View__3)],
+      ['query'],
+    ),
+  'getActivitiesForProject' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(View__3)],
+      ['query'],
+    ),
+  'getAllActivities' : IDL.Func([], [IDL.Vec(View__3)], ['query']),
+  'getAllInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+  'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
   'getAllProjects' : IDL.Func([], [IDL.Vec(View)], ['query']),
-  'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-  'getAllUsers' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__1)], ['query']),
+  'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+  'getAllUsers' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__2)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getConversation' : IDL.Func([IDL.Principal], [IDL.Vec(View__1)], ['query']),
+  'getMessagesForCaller' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
   'getProject' : IDL.Func([IDL.Nat], [IDL.Opt(View)], ['query']),
   'getProjectsByStatus' : IDL.Func([Type], [IDL.Vec(View)], ['query']),
   'getProjectsForIntern' : IDL.Func(
@@ -85,9 +117,16 @@ export const idlService = IDL.Service({
       [IDL.Vec(View)],
       ['query'],
     ),
-  'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__1)], ['query']),
+  'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__2)], ['query']),
   'getUserRole' : IDL.Func([IDL.Principal], [Type__2], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'logActivity' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
+      [View__3],
+      [],
+    ),
+  'markMessageRead' : IDL.Func([IDL.Nat], [], []),
   'promoteToAdmin' : IDL.Func([IDL.Principal], [], []),
   'registerIntern' : IDL.Func(
       [IDL.Record({ 'bio' : IDL.Text, 'name' : IDL.Text, 'email' : IDL.Text })],
@@ -96,7 +135,8 @@ export const idlService = IDL.Service({
     ),
   'rejectInternRegistration' : IDL.Func([IDL.Principal], [], []),
   'removeProject' : IDL.Func([IDL.Nat], [], []),
-  'saveCallerUserProfile' : IDL.Func([View__1], [], []),
+  'saveCallerUserProfile' : IDL.Func([View__2], [], []),
+  'sendMessage' : IDL.Func([IDL.Principal, IDL.Text], [View__1], []),
   'unassignInternFromProject' : IDL.Func(
       [
         IDL.Record({
@@ -144,17 +184,36 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'startDate' : IDL.Text,
   });
+  const View__3 = IDL.Record({
+    'id' : IDL.Nat,
+    'internPrincipal' : IDL.Principal,
+    'title' : IDL.Text,
+    'hours' : IDL.Nat,
+    'date' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'description' : IDL.Text,
+    'projectId' : IDL.Nat,
+  });
   const Type__1 = IDL.Variant({
     'active' : IDL.Null,
     'pending' : IDL.Null,
     'rejected' : IDL.Null,
   });
-  const View__1 = IDL.Record({
+  const View__2 = IDL.Record({
     'bio' : IDL.Text,
+    'principal' : IDL.Principal,
     'name' : IDL.Text,
     'email' : IDL.Text,
     'registrationStatus' : Type__1,
     'skills' : IDL.Vec(IDL.Text),
+  });
+  const View__1 = IDL.Record({
+    'id' : IDL.Nat,
+    'content' : IDL.Text,
+    'recipient' : IDL.Principal,
+    'isRead' : IDL.Bool,
+    'sender' : IDL.Principal,
+    'timestamp' : IDL.Int,
   });
   const Type__2 = IDL.Variant({
     'admin' : IDL.Null,
@@ -188,13 +247,30 @@ export const idlFactory = ({ IDL }) => {
         [View],
         [],
       ),
-    'getAllInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-    'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
+    'getActivitiesForIntern' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(View__3)],
+        ['query'],
+      ),
+    'getActivitiesForProject' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(View__3)],
+        ['query'],
+      ),
+    'getAllActivities' : IDL.Func([], [IDL.Vec(View__3)], ['query']),
+    'getAllInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+    'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
     'getAllProjects' : IDL.Func([], [IDL.Vec(View)], ['query']),
-    'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-    'getAllUsers' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
-    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__1)], ['query']),
+    'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+    'getAllUsers' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__2)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getConversation' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(View__1)],
+        ['query'],
+      ),
+    'getMessagesForCaller' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
     'getProject' : IDL.Func([IDL.Nat], [IDL.Opt(View)], ['query']),
     'getProjectsByStatus' : IDL.Func([Type], [IDL.Vec(View)], ['query']),
     'getProjectsForIntern' : IDL.Func(
@@ -202,9 +278,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(View)],
         ['query'],
       ),
-    'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__1)], ['query']),
+    'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__2)], ['query']),
     'getUserRole' : IDL.Func([IDL.Principal], [Type__2], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'logActivity' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
+        [View__3],
+        [],
+      ),
+    'markMessageRead' : IDL.Func([IDL.Nat], [], []),
     'promoteToAdmin' : IDL.Func([IDL.Principal], [], []),
     'registerIntern' : IDL.Func(
         [
@@ -219,7 +302,8 @@ export const idlFactory = ({ IDL }) => {
       ),
     'rejectInternRegistration' : IDL.Func([IDL.Principal], [], []),
     'removeProject' : IDL.Func([IDL.Nat], [], []),
-    'saveCallerUserProfile' : IDL.Func([View__1], [], []),
+    'saveCallerUserProfile' : IDL.Func([View__2], [], []),
+    'sendMessage' : IDL.Func([IDL.Principal, IDL.Text], [View__1], []),
     'unassignInternFromProject' : IDL.Func(
         [
           IDL.Record({

@@ -1,30 +1,44 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
+  Activity,
   FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Settings,
   Users,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import MessagesPage from "../pages/MessagesPage";
+import AdminActivityPage from "../pages/admin/AdminActivityPage";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
 import InternsPage from "../pages/admin/InternsPage";
 import ProjectsPage from "../pages/admin/ProjectsPage";
 
-type AdminPage = "dashboard" | "interns" | "projects" | "settings";
+type AdminPage =
+  | "dashboard"
+  | "interns"
+  | "projects"
+  | "activity"
+  | "messages"
+  | "settings";
 
 const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
   [
     { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { page: "interns", label: "Interns", icon: Users },
     { page: "projects", label: "Projects", icon: FolderKanban },
+    { page: "activity", label: "Activity", icon: Activity },
+    { page: "messages", label: "Messages", icon: MessageSquare },
     { page: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -32,10 +46,12 @@ function SidebarContent({
   currentPage,
   onNavigate,
   onClose,
+  unreadCount,
 }: {
   currentPage: AdminPage;
   onNavigate: (page: AdminPage) => void;
   onClose?: () => void;
+  unreadCount: number;
 }) {
   const { clear } = useInternetIdentity();
   const { profile } = useAuth();
@@ -78,9 +94,15 @@ function SidebarContent({
                 ? "bg-sidebar-primary text-sidebar-primary-foreground"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             )}
+            data-ocid={`admin.nav.${item.page}.link`}
           >
             <item.icon className="h-4 w-4 flex-shrink-0" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.page === "messages" && unreadCount > 0 && (
+              <Badge className="h-4 min-w-4 px-1 text-[10px] bg-destructive text-destructive-foreground">
+                {unreadCount}
+              </Badge>
+            )}
           </button>
         ))}
       </nav>
@@ -103,6 +125,7 @@ function SidebarContent({
             onClick={handleLogout}
             className="p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             title="Sign out"
+            data-ocid="admin.nav.logout.button"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -113,8 +136,26 @@ function SidebarContent({
 }
 
 export default function AdminShell() {
+  const { actor } = useActor();
   const [currentPage, setCurrentPage] = useState<AdminPage>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const count = await actor.getUnreadCount();
+      setUnreadCount(Number(count));
+    } catch {
+      // silent
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -124,6 +165,10 @@ export default function AdminShell() {
         return <InternsPage />;
       case "projects":
         return <ProjectsPage />;
+      case "activity":
+        return <AdminActivityPage />;
+      case "messages":
+        return <MessagesPage />;
       case "settings":
         return <AdminSettingsPage />;
     }
@@ -132,7 +177,11 @@ export default function AdminShell() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <aside className="hidden lg:flex w-60 flex-shrink-0 flex-col border-r border-border">
-        <SidebarContent currentPage={currentPage} onNavigate={setCurrentPage} />
+        <SidebarContent
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          unreadCount={unreadCount}
+        />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -141,6 +190,7 @@ export default function AdminShell() {
             currentPage={currentPage}
             onNavigate={setCurrentPage}
             onClose={() => setMobileOpen(false)}
+            unreadCount={unreadCount}
           />
         </SheetContent>
       </Sheet>

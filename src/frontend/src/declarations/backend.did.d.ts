@@ -32,11 +32,30 @@ export interface View {
   'startDate' : string,
 }
 export interface View__1 {
+  'id' : bigint,
+  'content' : string,
+  'recipient' : Principal,
+  'isRead' : boolean,
+  'sender' : Principal,
+  'timestamp' : bigint,
+}
+export interface View__2 {
   'bio' : string,
+  'principal' : Principal,
   'name' : string,
   'email' : string,
   'registrationStatus' : Type__1,
   'skills' : Array<string>,
+}
+export interface View__3 {
+  'id' : bigint,
+  'internPrincipal' : Principal,
+  'title' : string,
+  'hours' : bigint,
+  'date' : string,
+  'createdAt' : bigint,
+  'description' : string,
+  'projectId' : bigint,
 }
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
@@ -57,19 +76,30 @@ export interface _SERVICE {
     ],
     View
   >,
-  'getAllInterns' : ActorMethod<[], Array<View__1>>,
-  'getAllPendingInterns' : ActorMethod<[], Array<View__1>>,
+  'getActivitiesForIntern' : ActorMethod<[Principal], Array<View__3>>,
+  'getActivitiesForProject' : ActorMethod<[bigint], Array<View__3>>,
+  'getAllActivities' : ActorMethod<[], Array<View__3>>,
+  'getAllInterns' : ActorMethod<[], Array<View__2>>,
+  'getAllPendingInterns' : ActorMethod<[], Array<View__2>>,
   'getAllProjects' : ActorMethod<[], Array<View>>,
-  'getAllRejectedInterns' : ActorMethod<[], Array<View__1>>,
-  'getAllUsers' : ActorMethod<[], Array<View__1>>,
-  'getCallerUserProfile' : ActorMethod<[], [] | [View__1]>,
+  'getAllRejectedInterns' : ActorMethod<[], Array<View__2>>,
+  'getAllUsers' : ActorMethod<[], Array<View__2>>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [View__2]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getConversation' : ActorMethod<[Principal], Array<View__1>>,
+  'getMessagesForCaller' : ActorMethod<[], Array<View__1>>,
   'getProject' : ActorMethod<[bigint], [] | [View]>,
   'getProjectsByStatus' : ActorMethod<[Type], Array<View>>,
   'getProjectsForIntern' : ActorMethod<[Principal], Array<View>>,
-  'getUserProfile' : ActorMethod<[Principal], [] | [View__1]>,
+  'getUnreadCount' : ActorMethod<[], bigint>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [View__2]>,
   'getUserRole' : ActorMethod<[Principal], Type__2>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'logActivity' : ActorMethod<
+    [bigint, string, string, string, bigint],
+    View__3
+  >,
+  'markMessageRead' : ActorMethod<[bigint], undefined>,
   'promoteToAdmin' : ActorMethod<[Principal], undefined>,
   'registerIntern' : ActorMethod<
     [{ 'bio' : string, 'name' : string, 'email' : string }],
@@ -77,7 +107,8 @@ export interface _SERVICE {
   >,
   'rejectInternRegistration' : ActorMethod<[Principal], undefined>,
   'removeProject' : ActorMethod<[bigint], undefined>,
-  'saveCallerUserProfile' : ActorMethod<[View__1], undefined>,
+  'saveCallerUserProfile' : ActorMethod<[View__2], undefined>,
+  'sendMessage' : ActorMethod<[Principal, string], View__1>,
   'unassignInternFromProject' : ActorMethod<
     [{ 'internPrincipal' : Principal, 'projectId' : bigint }],
     undefined

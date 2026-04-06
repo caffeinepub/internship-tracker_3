@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { UserRole, View, View__1 } from "../backend";
+import type { UserRole, View__2 } from "../backend";
 import { useActor } from "./useActor";
 import { useInternetIdentity } from "./useInternetIdentity";
 
@@ -35,7 +35,7 @@ export function useBackend() {
     return withLoading(() => actor.getCallerUserRole());
   }, [actor, withLoading]);
 
-  const getCallerProfile = useCallback(async (): Promise<View__1 | null> => {
+  const getCallerProfile = useCallback(async (): Promise<View__2 | null> => {
     if (!actor) return null;
     const result = await withLoading(() => actor.getCallerUserProfile());
     return result ?? null;
