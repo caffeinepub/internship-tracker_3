@@ -8,6 +8,7 @@ import Time "mo:core/Time";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Set "mo:core/Set";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
@@ -123,6 +124,71 @@ actor {
   module RegistrationStatus {
     public type Type = { #pending; #active; #rejected };
   };
+  module MilestoneStatus {
+    public type Type = { #pending; #inProgress; #completed };
+  };
+  module Milestone {
+    public type Type = {
+      id : Nat;
+      internPrincipal : Principal;
+      projectId : Nat;
+      title : Text;
+      description : Text;
+      status : MilestoneStatus.Type;
+      dueDate : Text;
+      createdAt : Int;
+    };
+    public type View = {
+      id : Nat;
+      internPrincipal : Principal;
+      projectId : Nat;
+      title : Text;
+      description : Text;
+      status : MilestoneStatus.Type;
+      dueDate : Text;
+      createdAt : Int;
+    };
+  };
+  module NotificationType {
+    public type Type = {
+      #newApprovalRequest;
+      #projectAssigned;
+      #milestoneUpdate;
+      #messageReceived;
+    };
+  };
+  module Notification {
+    public type Type = {
+      id : Nat;
+      recipientPrincipal : Principal;
+      notificationType : NotificationType.Type;
+      message : Text;
+      relatedId : Nat;
+      isRead : Bool;
+      timestamp : Int;
+    };
+    public type View = {
+      id : Nat;
+      recipientPrincipal : Principal;
+      notificationType : NotificationType.Type;
+      message : Text;
+      relatedId : Nat;
+      isRead : Bool;
+      timestamp : Int;
+    };
+  };
+  module AnalyticsSummary {
+    public type Type = {
+      totalHours : Nat;
+      totalActivities : Nat;
+      totalMilestones : Nat;
+      completedMilestones : Nat;
+      activeInternCount : Nat;
+      projectCount : Nat;
+      hoursByProject : [(Nat, Nat)];
+      recentActivities : [ActivityLog.View];
+    };
+  };
 
   // --- Persistent State ---
   let accessControlState = AccessControl.initState();
@@ -132,12 +198,31 @@ actor {
   var nextProjectId = 1;
   var nextActivityId = 1;
   var nextMessageId = 1;
+  var nextMilestoneId = 1;
+  var nextNotificationId = 1;
   var lastActivityTime : ?Int = null;
 
   let userProfiles = Map.empty<Principal, UserProfile.Type>();
   let projects = Map.empty<Nat, Project.Type>();
   let activityLogs = Map.empty<Nat, ActivityLog.Type>();
   let messages = Map.empty<Nat, Message.Type>();
+  let milestones = Map.empty<Nat, Milestone.Type>();
+  let notifications = Map.empty<Nat, Notification.Type>();
+
+  // --- Notification Helper ---
+  func createNotificationInternal(recipient : Principal, notificationType : NotificationType.Type, message : Text, relatedId : Nat) {
+    let newNotification : Notification.Type = {
+      id = nextNotificationId;
+      recipientPrincipal = recipient;
+      notificationType;
+      message;
+      relatedId;
+      isRead = false;
+      timestamp = Time.now();
+    };
+    notifications.add(nextNotificationId, newNotification);
+    nextNotificationId += 1;
+  };
 
   // --- Project CRUD Functions ---
   func createProjectInternal(title : Text, description : Text, startDate : Text, endDate : Text) : Project.Type {
@@ -198,6 +283,14 @@ actor {
       Runtime.trap("Unauthorized: Only admins can assign interns to projects");
     };
     updateProjectWithIntern(projectId, internPrincipal, true);
+    // Notify the intern
+    let project = getProjectById(projectId);
+    createNotificationInternal(
+      internPrincipal,
+      #projectAssigned,
+      "You have been assigned to project: " # project.title,
+      projectId
+    );
   };
 
   public shared ({ caller }) func unassignInternFromProject({ projectId : Nat; internPrincipal : Principal }) : async () {
@@ -360,6 +453,183 @@ actor {
     count;
   };
 
+  // --- Milestone Functions ---
+  public shared ({ caller }) func createMilestone({ projectId : Nat; title : Text; description : Text; dueDate : Text }) : async Milestone.View {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only interns can create milestones");
+    };
+    let newMilestone : Milestone.Type = {
+      id = nextMilestoneId;
+      internPrincipal = caller;
+      projectId;
+      title;
+      description;
+      status = #pending;
+      dueDate;
+      createdAt = Time.now();
+    };
+    milestones.add(nextMilestoneId, newMilestone);
+    nextMilestoneId += 1;
+    newMilestone;
+  };
+
+  public shared ({ caller }) func updateMilestoneStatus(milestoneId : Nat, status : MilestoneStatus.Type) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can update milestones");
+    };
+    switch (milestones.get(milestoneId)) {
+      case (null) { Runtime.trap("Milestone not found") };
+      case (?milestone) {
+        if (milestone.internPrincipal != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Can only update your own milestones");
+        };
+        milestones.add(milestoneId, { milestone with status });
+        // If milestone completed, notify all admins
+        if (status == #completed) {
+          for ((principal, user) in userProfiles.entries()) {
+            if (AccessControl.isAdmin(accessControlState, principal)) {
+              createNotificationInternal(
+                principal,
+                #milestoneUpdate,
+                "Milestone completed: " # milestone.title,
+                milestoneId
+              );
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getMilestonesForIntern(intern : Principal) : async [Milestone.View] {
+    if (caller != intern and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own milestones");
+    };
+    let filteredResults = List.empty<Milestone.Type>();
+    for (m in milestones.values()) {
+      if (m.internPrincipal == intern) {
+        filteredResults.add(m);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public query ({ caller }) func getMilestonesForProject(projectId : Nat) : async [Milestone.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view milestones");
+    };
+    let project = getProjectById(projectId);
+    if (not project.assignedInterns.contains(caller) and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You are not assigned to this project");
+    };
+    let filteredResults = List.empty<Milestone.Type>();
+    for (m in milestones.values()) {
+      if (m.projectId == projectId) {
+        filteredResults.add(m);
+      };
+    };
+    filteredResults.toArray();
+  };
+
+  public query ({ caller }) func getAllMilestones() : async [Milestone.View] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all milestones");
+    };
+    milestones.values().toArray();
+  };
+
+  // --- Notification Functions ---
+  public query ({ caller }) func getNotificationsForCaller() : async [Notification.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view notifications");
+    };
+    let filteredResults = List.empty<Notification.Type>();
+    for (n in notifications.values()) {
+      if (n.recipientPrincipal == caller) {
+        filteredResults.add(n);
+      };
+    };
+    filteredResults.toArray().sort(func(a, b) { Int.compare(b.timestamp, a.timestamp) });
+  };
+
+  public query ({ caller }) func getUnreadNotificationCount() : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can get notification count");
+    };
+    var count = 0;
+    for (n in notifications.values()) {
+      if (n.recipientPrincipal == caller and not n.isRead) {
+        count += 1;
+      };
+    };
+    count;
+  };
+
+  public shared ({ caller }) func markNotificationRead(notificationId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can mark notifications as read");
+    };
+    switch (notifications.get(notificationId)) {
+      case (null) { Runtime.trap("Notification not found") };
+      case (?notification) {
+        if (notification.recipientPrincipal != caller) {
+          Runtime.trap("Unauthorized: Can only mark your own notifications as read");
+        };
+        notifications.add(notificationId, { notification with isRead = true });
+      };
+    };
+  };
+
+  public shared ({ caller }) func markAllNotificationsRead() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can mark notifications as read");
+    };
+    for ((id, notification) in notifications.entries()) {
+      if (notification.recipientPrincipal == caller and not notification.isRead) {
+        notifications.add(id, { notification with isRead = true });
+      };
+    };
+  };
+
+  // --- Analytics Functions ---
+  public query ({ caller }) func getAnalyticsSummary() : async AnalyticsSummary.Type {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view analytics");
+    };
+    var totalHours = 0;
+    let hoursByProjectMap = Map.empty<Nat, Nat>();
+    for (log in activityLogs.values()) {
+      totalHours += log.hours;
+      let existing = switch (hoursByProjectMap.get(log.projectId)) {
+        case (null) { 0 };
+        case (?h) { h };
+      };
+      hoursByProjectMap.add(log.projectId, existing + log.hours);
+    };
+    var completedMilestones = 0;
+    for (m in milestones.values()) {
+      if (m.status == #completed) { completedMilestones += 1 };
+    };
+    var activeInternCount = 0;
+    for ((_, user) in userProfiles.entries()) {
+      if (user.registrationStatus == #active) { activeInternCount += 1 };
+    };
+    let allActivities = activityLogs.values().toArray();
+    let sortedActivities = allActivities.sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+    let recentCount = if (sortedActivities.size() < 10) sortedActivities.size() else 10;
+    let recentActivities = Array.tabulate(recentCount, func(i : Nat) : ActivityLog.Type { sortedActivities[i] });
+    {
+      totalHours;
+      totalActivities = activityLogs.size();
+      totalMilestones = milestones.size();
+      completedMilestones;
+      activeInternCount;
+      projectCount = projects.size();
+      hoursByProject = hoursByProjectMap.entries().toArray();
+      recentActivities;
+    };
+  };
+
   // --- Intern Registration Functions ---
   public shared ({ caller }) func registerIntern({ name : Text; bio : Text; email : Text }) : async () {
     if (userProfiles.containsKey(caller)) {
@@ -373,6 +643,17 @@ actor {
       registrationStatus = #pending;
     };
     userProfiles.add(caller, newState);
+    // Notify all admins about new approval request
+    for ((principal, _) in userProfiles.entries()) {
+      if (AccessControl.isAdmin(accessControlState, principal)) {
+        createNotificationInternal(
+          principal,
+          #newApprovalRequest,
+          "New intern registration request from: " # name,
+          0
+        );
+      };
+    };
   };
 
   public shared ({ caller }) func updateProfile({ name : Text; bio : Text; email : Text; skills : [Text] }) : async () {

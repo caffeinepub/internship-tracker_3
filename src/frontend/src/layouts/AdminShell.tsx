@@ -4,6 +4,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   Activity,
+  BarChart2,
+  Flag,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -14,13 +16,16 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
+import NotificationBell from "../components/NotificationBell";
 import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import MessagesPage from "../pages/MessagesPage";
 import AdminActivityPage from "../pages/admin/AdminActivityPage";
 import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminMilestonesPage from "../pages/admin/AdminMilestonesPage";
 import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
+import AnalyticsPage from "../pages/admin/AnalyticsPage";
 import InternsPage from "../pages/admin/InternsPage";
 import ProjectsPage from "../pages/admin/ProjectsPage";
 
@@ -30,7 +35,9 @@ type AdminPage =
   | "projects"
   | "activity"
   | "messages"
-  | "settings";
+  | "settings"
+  | "analytics"
+  | "milestones";
 
 const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
   [
@@ -38,6 +45,8 @@ const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
     { page: "interns", label: "Interns", icon: Users },
     { page: "projects", label: "Projects", icon: FolderKanban },
     { page: "activity", label: "Activity", icon: Activity },
+    { page: "analytics", label: "Analytics", icon: BarChart2 },
+    { page: "milestones", label: "Milestones", icon: Flag },
     { page: "messages", label: "Messages", icon: MessageSquare },
     { page: "settings", label: "Settings", icon: Settings },
   ];
@@ -55,6 +64,7 @@ function SidebarContent({
 }) {
   const { clear } = useInternetIdentity();
   const { profile } = useAuth();
+  const { actor } = useActor();
 
   const handleLogout = () => {
     clear();
@@ -70,16 +80,17 @@ function SidebarContent({
               IT
             </span>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="font-display font-semibold text-sm text-sidebar-foreground">
               Internship Tracker
             </p>
             <p className="text-xs text-sidebar-foreground/50">Admin Panel</p>
           </div>
+          <NotificationBell actor={actor} />
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => (
           <button
             key={item.page}
@@ -167,6 +178,10 @@ export default function AdminShell() {
         return <ProjectsPage />;
       case "activity":
         return <AdminActivityPage />;
+      case "analytics":
+        return <AnalyticsPage />;
+      case "milestones":
+        return <AdminMilestonesPage />;
       case "messages":
         return <MessagesPage />;
       case "settings":

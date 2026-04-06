@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
+import NotificationBell from "../components/NotificationBell";
 import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -51,6 +52,7 @@ function SidebarContent({
 }) {
   const { clear } = useInternetIdentity();
   const { profile } = useAuth();
+  const { actor } = useActor();
 
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
@@ -61,12 +63,13 @@ function SidebarContent({
               IT
             </span>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="font-display font-semibold text-sm text-sidebar-foreground">
               Internship Tracker
             </p>
             <p className="text-xs text-sidebar-foreground/50">Intern Portal</p>
           </div>
+          <NotificationBell actor={actor} />
         </div>
       </div>
 
