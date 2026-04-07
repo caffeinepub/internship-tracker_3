@@ -20,7 +20,7 @@ import {
 import { Activity, Clock, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { View, View__3 } from "../../backend";
+import type { View, View__4 } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 
 function truncatePrincipal(principal: string) {
@@ -30,7 +30,7 @@ function truncatePrincipal(principal: string) {
 
 export default function AdminActivityPage() {
   const { actor } = useActor();
-  const [activities, setActivities] = useState<View__3[]>([]);
+  const [activities, setActivities] = useState<View__4[]>([]);
   const [projects, setProjects] = useState<View[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

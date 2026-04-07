@@ -11,30 +11,37 @@ import {
   Flag,
   FolderKanban,
   GanttChartSquare,
+  GitBranch,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   MessageSquare,
+  Search,
   Settings,
   Users,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import NotificationBell from "../components/NotificationBell";
+import NotificationCenter from "../components/NotificationCenter";
+import ThemeToggle from "../components/ThemeToggle";
 import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import MessagesPage from "../pages/MessagesPage";
 import AdminActivityPage from "../pages/admin/AdminActivityPage";
+import AdminCodeMonitorPage from "../pages/admin/AdminCodeMonitorPage";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminMilestonesPage from "../pages/admin/AdminMilestonesPage";
 import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
 import AnalyticsPage from "../pages/admin/AnalyticsPage";
+import AnnouncementsPage from "../pages/admin/AnnouncementsPage";
 import CalendarPage from "../pages/admin/CalendarPage";
 import ExtensionRequestsPage from "../pages/admin/ExtensionRequestsPage";
 import InternsPage from "../pages/admin/InternsPage";
 import ProjectsPage from "../pages/admin/ProjectsPage";
 import ReportsPage from "../pages/admin/ReportsPage";
+import SearchPage from "../pages/admin/SearchPage";
 import TimelinePage from "../pages/admin/TimelinePage";
 
 type AdminPage =
@@ -49,7 +56,10 @@ type AdminPage =
   | "reports"
   | "extensions"
   | "calendar"
-  | "timeline";
+  | "timeline"
+  | "code-monitor"
+  | "announcements"
+  | "search";
 
 const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
   [
@@ -63,7 +73,10 @@ const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
     { page: "extensions", label: "Extensions", icon: CalendarClock },
     { page: "calendar", label: "Calendar", icon: CalendarDays },
     { page: "timeline", label: "Timeline", icon: GanttChartSquare },
+    { page: "code-monitor", label: "Code Monitor", icon: GitBranch },
+    { page: "announcements", label: "Announcements", icon: Megaphone },
     { page: "messages", label: "Messages", icon: MessageSquare },
+    { page: "search", label: "Search", icon: Search },
     { page: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -82,8 +95,8 @@ function SidebarContent({
   const { profile } = useAuth();
   const { actor } = useActor();
 
-  const handleLogout = () => {
-    clear();
+  const handleNavigate = (page: AdminPage) => {
+    onNavigate(page);
     onClose?.();
   };
 
@@ -102,7 +115,11 @@ function SidebarContent({
             </p>
             <p className="text-xs text-sidebar-foreground/50">Admin Panel</p>
           </div>
-          <NotificationBell actor={actor} />
+          <ThemeToggle />
+          <NotificationCenter
+            actor={actor}
+            onNavigate={(page) => handleNavigate(page as AdminPage)}
+          />
         </div>
       </div>
 
@@ -111,10 +128,7 @@ function SidebarContent({
           <button
             key={item.page}
             type="button"
-            onClick={() => {
-              onNavigate(item.page);
-              onClose?.();
-            }}
+            onClick={() => handleNavigate(item.page)}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left",
               currentPage === item.page
@@ -149,7 +163,10 @@ function SidebarContent({
           </div>
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => {
+              clear();
+              onClose?.();
+            }}
             className="p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             title="Sign out"
             data-ocid="admin.nav.logout.button"
@@ -206,6 +223,12 @@ export default function AdminShell() {
         return <CalendarPage />;
       case "timeline":
         return <TimelinePage />;
+      case "code-monitor":
+        return <AdminCodeMonitorPage />;
+      case "announcements":
+        return <AnnouncementsPage />;
+      case "search":
+        return <SearchPage />;
       case "messages":
         return <MessagesPage />;
       case "settings":
@@ -243,9 +266,10 @@ export default function AdminShell() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-display font-semibold text-sm">
+          <span className="font-display font-semibold text-sm flex-1">
             Internship Tracker
           </span>
+          <ThemeToggle />
         </div>
 
         <main className="flex-1 overflow-y-auto">{renderPage()}</main>

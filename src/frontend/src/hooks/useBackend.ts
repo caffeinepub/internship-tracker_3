@@ -44,7 +44,7 @@ export function useBackend() {
   const isAdmin = useCallback(async (): Promise<boolean> => {
     if (!actor) return false;
     const result = await withLoading(() => actor.isCallerAdmin());
-    return result ?? false;
+    return result === true;
   }, [actor, withLoading]);
 
   return {

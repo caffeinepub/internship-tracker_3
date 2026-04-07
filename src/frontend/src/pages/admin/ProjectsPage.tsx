@@ -2,6 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,20 +29,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Calendar,
+  ChevronDown,
   FolderKanban,
   Loader2,
   Pencil,
+  Pin,
   Plus,
+  Tag,
   Trash2,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View, View__2 } from "../../backend";
+import type { Type__1, View, View__2 } from "../../backend";
 import { Type } from "../../backend";
 import { useActor } from "../../hooks/useActor";
+
+// ─── Status Badge ────────────────────────────────────────────────────────────
 
 function ProjectStatusBadge({ status }: { status: Type }) {
   if (status === Type.active)
@@ -59,7 +70,263 @@ function ProjectStatusBadge({ status }: { status: Type }) {
   );
 }
 
-const emptyForm = { title: "", description: "", startDate: "", endDate: "" };
+// ─── Tag Manager ─────────────────────────────────────────────────────────────
+
+const TAG_COLORS = [
+  "bg-blue-100 text-blue-700 border-blue-200",
+  "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "bg-violet-100 text-violet-700 border-violet-200",
+  "bg-orange-100 text-orange-700 border-orange-200",
+  "bg-pink-100 text-pink-700 border-pink-200",
+  "bg-cyan-100 text-cyan-700 border-cyan-200",
+];
+
+function tagColor(tag: string) {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++)
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+}
+
+function TagManager({
+  project,
+  onTagAdded,
+}: {
+  project: View;
+  onTagAdded: () => void;
+}) {
+  const { actor } = useActor();
+  const [adding, setAdding] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const addTag = async () => {
+    const tag = tagInput.trim();
+    if (!actor || !tag) return;
+    setSaving(true);
+    try {
+      await actor.addProjectTag(project.id, tag);
+      setTagInput("");
+      setAdding(false);
+      onTagAdded();
+    } catch {
+      toast.error("Failed to add tag");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      {project.tags?.map((tag) => (
+        <span
+          key={tag}
+          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium ${tagColor(tag)}`}
+        >
+          <Tag className="h-2.5 w-2.5" />
+          {tag}
+        </span>
+      ))}
+      {adding ? (
+        <div className="flex items-center gap-1">
+          <Input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addTag();
+              if (e.key === "Escape") {
+                setAdding(false);
+                setTagInput("");
+              }
+            }}
+            placeholder="Tag name..."
+            className="h-6 w-28 text-xs px-2"
+            autoFocus
+            data-ocid="projects.tag_input"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={addTag}
+            disabled={saving || !tagInput.trim()}
+            className="h-6 px-2 text-xs"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setAdding(false);
+              setTagInput("");
+            }}
+            className="h-6 px-1 text-xs"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          data-ocid="projects.add_tag_button"
+        >
+          <Plus className="h-2.5 w-2.5" />
+          Add tag
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Subtask Section ─────────────────────────────────────────────────────────
+
+function SubtaskSection({
+  project,
+  onUpdate,
+}: {
+  project: View;
+  onUpdate: () => void;
+}) {
+  const { actor } = useActor();
+  const [open, setOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const addSubtask = async () => {
+    const title = newTitle.trim();
+    if (!actor || !title) return;
+    setAdding(true);
+    try {
+      const dueDateNs = newDueDate
+        ? BigInt(new Date(newDueDate).getTime()) * 1_000_000n
+        : null;
+      await actor.addSubtask(project.id, title, dueDateNs);
+      setNewTitle("");
+      setNewDueDate("");
+      onUpdate();
+    } catch {
+      toast.error("Failed to add subtask");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const toggleSubtask = async (subtaskId: string) => {
+    if (!actor) return;
+    setToggling(subtaskId);
+    try {
+      await actor.toggleSubtask(project.id, subtaskId);
+      onUpdate();
+    } catch {
+      toast.error("Failed to update subtask");
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const subtasks: Type__1[] = project.subtasks || [];
+  const completedCount = subtasks.filter((s) => s.isCompleted).length;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-2"
+          data-ocid="projects.subtasks_toggle"
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
+          />
+          Subtasks
+          {subtasks.length > 0 && (
+            <span className="ml-1 text-[10px] bg-muted px-1.5 py-0 rounded-full">
+              {completedCount}/{subtasks.length}
+            </span>
+          )}
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-1.5 pl-4 border-l border-border">
+        {subtasks.length === 0 && (
+          <p className="text-xs text-muted-foreground italic py-1">
+            No subtasks yet
+          </p>
+        )}
+        {subtasks.map((subtask) => (
+          <div key={subtask.id} className="flex items-center gap-2.5 group">
+            <Checkbox
+              id={subtask.id}
+              checked={subtask.isCompleted}
+              disabled={toggling === subtask.id}
+              onCheckedChange={() => toggleSubtask(subtask.id)}
+              className="h-3.5 w-3.5"
+              data-ocid="projects.subtask_checkbox"
+            />
+            <label
+              htmlFor={subtask.id}
+              className={`text-xs cursor-pointer select-none flex-1 min-w-0 ${
+                subtask.isCompleted
+                  ? "line-through text-muted-foreground"
+                  : "text-foreground"
+              }`}
+            >
+              {subtask.title}
+            </label>
+            {subtask.dueDate && (
+              <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                {new Date(
+                  Number(subtask.dueDate) / 1_000_000,
+                ).toLocaleDateString()}
+              </span>
+            )}
+            {toggling === subtask.id && (
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        ))}
+
+        {/* Add subtask inline */}
+        <div className="flex items-center gap-1.5 pt-1">
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addSubtask()}
+            placeholder="Add subtask..."
+            className="h-6 text-xs px-2 flex-1"
+            data-ocid="projects.subtask_input"
+          />
+          <Input
+            type="date"
+            value={newDueDate}
+            onChange={(e) => setNewDueDate(e.target.value)}
+            className="h-6 text-xs px-2 w-32"
+            title="Due date (optional)"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={addSubtask}
+            disabled={adding || !newTitle.trim()}
+            className="h-6 px-2 text-xs"
+            data-ocid="projects.add_subtask_button"
+          >
+            {adding ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Plus className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ─── Assign Interns Dialog ───────────────────────────────────────────────────
 
 function AssignInternsDialog({
   project,
@@ -97,11 +364,8 @@ function AssignInternsDialog({
   const toggleIntern = (principalStr: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(principalStr)) {
-        next.delete(principalStr);
-      } else {
-        next.add(principalStr);
-      }
+      if (next.has(principalStr)) next.delete(principalStr);
+      else next.add(principalStr);
       return next;
     });
   };
@@ -113,7 +377,6 @@ function AssignInternsDialog({
       const originalAssigned = new Set(
         project.assignedInterns.map((p) => p.toString()),
       );
-
       const toAdd = allInterns.filter(
         (i) =>
           selected.has(i.principal.toString()) &&
@@ -124,7 +387,6 @@ function AssignInternsDialog({
           !selected.has(i.principal.toString()) &&
           originalAssigned.has(i.principal.toString()),
       );
-
       await Promise.all([
         ...toAdd.map((i) =>
           actor.assignInternToProject({
@@ -139,7 +401,6 @@ function AssignInternsDialog({
           }),
         ),
       ]);
-
       toast.success("Intern assignments saved");
       onOpenChange(false);
       onSaved();
@@ -161,7 +422,6 @@ function AssignInternsDialog({
             Select interns to assign to &ldquo;{project.title}&rdquo;
           </DialogDescription>
         </DialogHeader>
-
         {loadingInterns ? (
           <div className="space-y-2 py-2">
             {[1, 2, 3].map((i) => (
@@ -203,7 +463,6 @@ function AssignInternsDialog({
             </div>
           </ScrollArea>
         )}
-
         <DialogFooter>
           <Button
             variant="outline"
@@ -226,9 +485,156 @@ function AssignInternsDialog({
   );
 }
 
+// ─── Project Card ─────────────────────────────────────────────────────────────
+
+function ProjectCard({
+  project,
+  idx,
+  onEdit,
+  onDelete,
+  onAssign,
+  onUpdate,
+  deleteLoading,
+}: {
+  project: View;
+  idx: number;
+  onEdit: (p: View) => void;
+  onDelete: (id: bigint) => void;
+  onAssign: (p: View) => void;
+  onUpdate: () => void;
+  deleteLoading: bigint | null;
+}) {
+  const { actor } = useActor();
+  const [pinning, setPinning] = useState(false);
+
+  const togglePin = async () => {
+    if (!actor) return;
+    setPinning(true);
+    try {
+      await actor.toggleProjectPin(project.id);
+      onUpdate();
+    } catch {
+      toast.error("Failed to toggle pin");
+    } finally {
+      setPinning(false);
+    }
+  };
+
+  return (
+    <div
+      className={`bg-card border rounded-lg p-5 shadow-card transition-all ${
+        project.isPinned
+          ? "border-warning/40 ring-1 ring-warning/20"
+          : "border-border"
+      }`}
+      data-ocid={`projects.item.${idx + 1}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {project.isPinned && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/30 font-medium">
+                <Pin className="h-2.5 w-2.5" />
+                Pinned
+              </span>
+            )}
+            <h3 className="font-display font-semibold text-foreground">
+              {project.title}
+            </h3>
+            <ProjectStatusBadge status={project.status} />
+          </div>
+          {project.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {project.description}
+            </p>
+          )}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {(project.startDate || project.endDate) && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {project.startDate || "?"} → {project.endDate || "?"}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />
+              {project.assignedInterns.length} intern
+              {project.assignedInterns.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <TagManager project={project} onTagAdded={onUpdate} />
+          <SubtaskSection project={project} onUpdate={onUpdate} />
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={togglePin}
+            disabled={pinning}
+            className={`h-8 w-8 p-0 ${
+              project.isPinned
+                ? "text-warning hover:text-warning hover:bg-warning/10"
+                : "text-muted-foreground"
+            }`}
+            title={project.isPinned ? "Unpin project" : "Pin project"}
+            data-ocid={`projects.pin_button.${idx + 1}`}
+          >
+            {pinning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Pin
+                className={`h-3.5 w-3.5 ${project.isPinned ? "fill-warning" : ""}`}
+              />
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onAssign(project)}
+            className="h-8 text-xs"
+            title="Assign interns"
+            data-ocid={`projects.secondary_button.${idx + 1}`}
+          >
+            <UserPlus className="h-3.5 w-3.5 mr-1" />
+            Assign
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onEdit(project)}
+            className="h-8"
+            data-ocid={`projects.edit_button.${idx + 1}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onDelete(project.id)}
+            disabled={deleteLoading === project.id}
+            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            data-ocid={`projects.delete_button.${idx + 1}`}
+          >
+            {deleteLoading === project.id ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+const emptyForm = { title: "", description: "", startDate: "", endDate: "" };
+
 export default function ProjectsPage() {
   const { actor } = useActor();
   const [projects, setProjects] = useState<View[]>([]);
+  const [pinnedProjects, setPinnedProjects] = useState<View[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<bigint | null>(null);
@@ -242,8 +648,12 @@ export default function ProjectsPage() {
     if (!actor) return;
     setLoading(true);
     try {
-      const data = await actor.getAllProjects();
-      setProjects(data);
+      const [all, pinned] = await Promise.all([
+        actor.getAllProjects(),
+        actor.getPinnedProjects(),
+      ]);
+      setProjects(all);
+      setPinnedProjects(pinned);
     } catch {
       toast.error("Failed to load projects");
     } finally {
@@ -277,11 +687,6 @@ export default function ProjectsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleEdit = (project: View) => {
-    setEditProject(project);
-    setEditForm({ ...project });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -318,6 +723,14 @@ export default function ProjectsPage() {
       setDeleteLoading(null);
     }
   };
+
+  const handleEdit = (project: View) => {
+    setEditProject(project);
+    setEditForm({ ...project });
+  };
+
+  // Separate pinned from unpinned in the all-projects list to avoid duplication
+  const unpinnedProjects = projects.filter((p) => !p.isPinned);
 
   return (
     <div className="p-6 space-y-6">
@@ -420,7 +833,7 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      {/* Edit dialog */}
+      {/* Edit Dialog */}
       <Dialog
         open={!!editProject}
         onOpenChange={(open) => {
@@ -524,7 +937,7 @@ export default function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Interns Dialog */}
+      {/* Assign Dialog */}
       {assignProject && (
         <AssignInternsDialog
           project={assignProject}
@@ -536,7 +949,31 @@ export default function ProjectsPage() {
         />
       )}
 
-      {/* Project List */}
+      {/* Pinned Projects Section */}
+      {!loading && pinnedProjects.length > 0 && (
+        <section>
+          <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Pin className="h-3.5 w-3.5 text-warning fill-warning" />
+            Pinned
+          </h2>
+          <div className="space-y-3">
+            {pinnedProjects.map((project, idx) => (
+              <ProjectCard
+                key={String(project.id)}
+                project={project}
+                idx={idx}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onAssign={setAssignProject}
+                onUpdate={load}
+                deleteLoading={deleteLoading}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* All Projects */}
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -559,80 +996,31 @@ export default function ProjectsPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {projects.map((project, idx) => (
-            <div
-              key={String(project.id)}
-              className="bg-card border border-border rounded-lg p-5 shadow-card"
-              data-ocid={`projects.item.${idx + 1}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-display font-semibold text-foreground">
-                      {project.title}
-                    </h3>
-                    <ProjectStatusBadge status={project.status} />
-                  </div>
-                  {project.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {project.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {(project.startDate || project.endDate) && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {project.startDate || "?"} → {project.endDate || "?"}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
-                      {project.assignedInterns.length} intern
-                      {project.assignedInterns.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setAssignProject(project)}
-                    className="h-8 text-xs"
-                    title="Assign interns"
-                    data-ocid={`projects.secondary_button.${idx + 1}`}
-                  >
-                    <UserPlus className="h-3.5 w-3.5 mr-1" />
-                    Assign
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleEdit(project)}
-                    className="h-8"
-                    data-ocid={`projects.edit_button.${idx + 1}`}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(project.id)}
-                    disabled={deleteLoading === project.id}
-                    className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    data-ocid={`projects.delete_button.${idx + 1}`}
-                  >
-                    {deleteLoading === project.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </div>
+        <>
+          {unpinnedProjects.length > 0 && (
+            <section>
+              {pinnedProjects.length > 0 && (
+                <h2 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-widest mb-3">
+                  All Projects
+                </h2>
+              )}
+              <div className="space-y-3">
+                {unpinnedProjects.map((project, idx) => (
+                  <ProjectCard
+                    key={String(project.id)}
+                    project={project}
+                    idx={pinnedProjects.length + idx}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onAssign={setAssignProject}
+                    onUpdate={load}
+                    deleteLoading={deleteLoading}
+                  />
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

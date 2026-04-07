@@ -1,17 +1,14 @@
 import { Toaster } from "@/components/ui/sonner";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import LoadingScreen from "./components/LoadingScreen";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { InternetIdentityProvider } from "./hooks/useInternetIdentity";
+import { ThemeProvider } from "./hooks/useTheme";
 import AdminShell from "./layouts/AdminShell";
 import InternShell from "./layouts/InternShell";
 import LandingPage from "./pages/LandingPage";
 import PendingPage from "./pages/PendingPage";
 import RegistrationPage from "./pages/RegistrationPage";
 import RejectedPage from "./pages/RejectedPage";
-
-const queryClient = new QueryClient();
 
 function AppContent() {
   const { appRole } = useAuth();
@@ -27,13 +24,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <InternetIdentityProvider>
-        <AuthProvider>
-          <AppContent />
-          <Toaster position="top-right" />
-        </AuthProvider>
-      </InternetIdentityProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+        <Toaster position="top-right" />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

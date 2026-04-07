@@ -1,0 +1,343 @@
+// Version: 3.0.0
+type Data__159895909<T> = {var count : Nat__490723111; elements : [var ?T]};
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Internal__667636161<T> =
+  {children : [var ?Node__92254746<T>]; data : Data__159895909<T>};
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__520550824<T> = {data : Data__159895909<T>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type List__415060402<T> = List__790383201<T>;
+type List__790383201<T> =
+  {
+    var blockIndex : Nat__490723111;
+    var blocks : [var [var ?T]];
+    var elementIndex : Nat__490723111
+  };
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type Node__92254746<T> =
+  {#internal : Internal__667636161<T>; #leaf : Leaf__520550824<T>};
+type OldMessage__897832057 =
+  {
+    content : Text;
+    id : Nat;
+    isRead : Bool;
+    recipient : Principal;
+    sender : Principal;
+    timestamp : Int
+  };
+type OldNotificationType__89303409 =
+  {#messageReceived; #milestoneUpdate; #newApprovalRequest; #projectAssigned};
+type OldNotification__868316919 =
+  {
+    id : Nat;
+    isRead : Bool;
+    message : Text;
+    notificationType : OldNotificationType__89303409;
+    recipientPrincipal : Principal;
+    relatedId : Nat;
+    timestamp : Int
+  };
+type OldProjectStatus__663082204 = {#active; #completed; #planning};
+type OldProject__561176146 =
+  {
+    assignedInterns : Set__532252804<Principal>;
+    description : Text;
+    endDate : Text;
+    id : Nat;
+    startDate : Text;
+    status : OldProjectStatus__663082204;
+    title : Text
+  };
+type OldRegistrationStatus__899451982 = {#active; #pending; #rejected};
+type OldUserProfile__416069324 =
+  {
+    bio : Text;
+    email : Text;
+    name : Text;
+    registrationStatus : OldRegistrationStatus__899451982;
+    skills : Set__532252804<Text>
+  };
+type Set__532252804<T> = Set__710576254<T>;
+type Set__710576254<T> =
+  {var root : Node__92254746<T>; var size : Nat__490723111};
+type Type__17253432 = {#active; #pending; #rejected};
+type Type__192422056 =
+  {
+    adminNote : ?Text;
+    createdAt : Int;
+    id : Nat;
+    internPrincipal : Principal;
+    projectId : Nat;
+    reason : Text;
+    requestedEndDate : Text;
+    status : Type__991262234
+  };
+type Type__279914274 =
+  {
+    id : Nat;
+    isRead : Bool;
+    message : Text;
+    notificationType : Type__703592899;
+    recipientPrincipal : Principal;
+    relatedId : Nat;
+    timestamp : Int
+  };
+type Type__300983359 =
+  {dueDate : ?Int; id : Text; isCompleted : Bool; title : Text};
+type Type__333968482 =
+  {
+    adminId : Principal;
+    category : Text;
+    feedback : Text;
+    internId : Principal;
+    score : Nat;
+    timestamp : Int
+  };
+type Type__382880730 = {#completed; #inProgress; #pending};
+type Type__408575921 =
+  {
+    authorId : Principal;
+    branchId : Text;
+    files : [Type__739954201];
+    id : Text;
+    message : Text;
+    parentCommitId : ?Text;
+    timestamp : Int
+  };
+type Type__512408803 =
+  {
+    createdAt : Int;
+    date : Text;
+    description : Text;
+    hours : Nat;
+    id : Nat;
+    internPrincipal : Principal;
+    projectId : Nat;
+    title : Text
+  };
+type Type__609020089 =
+  {completedAt : ?Int; id : Text; isCompleted : Bool; title : Text};
+type Type__610177038 =
+  {
+    authorId : Principal;
+    content : Text;
+    id : Text;
+    isActive : Bool;
+    timestamp : Int;
+    title : Text
+  };
+type Type__65439284 = {#active; #completed; #planning};
+type Type__693968840 =
+  {
+    content : Text;
+    fileName : ?Text;
+    fileSize : ?Nat;
+    fileUrl : ?Text;
+    id : Nat;
+    isRead : Bool;
+    messageType : Type__781839069;
+    recipient : Principal;
+    sender : Principal;
+    timestamp : Int
+  };
+type Type__703592899 =
+  {
+    #announcement;
+    #commitPushed;
+    #messageReceived;
+    #milestoneUpdate;
+    #newApprovalRequest;
+    #performanceScored;
+    #projectAssigned
+  };
+type Type__739954201 = {content : Text; name : Text; path : Text};
+type Type__781839069 = {#file; #image; #systemMsg; #text};
+type Type__806252363 =
+  {
+    assignedInterns : Set__532252804<Principal>;
+    description : Text;
+    endDate : Text;
+    id : Nat;
+    isPinned : Bool;
+    startDate : Text;
+    status : Type__65439284;
+    subtasks : [Type__300983359];
+    tags : [Text];
+    title : Text
+  };
+type Type__8591086 =
+  {
+    bio : Text;
+    email : Text;
+    links : [Text];
+    name : Text;
+    photoUrl : ?Text;
+    registrationStatus : Type__17253432;
+    skills : Set__532252804<Text>
+  };
+type Type__913430355 =
+  {
+    id : Text;
+    isLocked : Bool;
+    name : Text;
+    ownerId : Principal;
+    projectId : Text
+  };
+type Type__936565974 =
+  {
+    createdAt : Int;
+    description : Text;
+    dueDate : Text;
+    id : Nat;
+    internPrincipal : Principal;
+    projectId : Nat;
+    status : Type__382880730;
+    title : Text
+  };
+type Type__991262234 = {#approved; #pending; #rejected};
+type UserRole__1054455867 = {#admin; #guest; #user};
+actor ({
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable activityLogs :
+    {
+      var root : Node__46230540<Nat, Type__512408803>;
+      var size : Nat__490723111
+    };
+  stable announcements :
+    {
+      var root : Node__46230540<Text, Type__610177038>;
+      var size : Nat__490723111
+    };
+  stable branches :
+    {
+      var root : Node__46230540<Text, Type__913430355>;
+      var size : Nat__490723111
+    };
+  stable commits :
+    {
+      var root : Node__46230540<Text, Type__408575921>;
+      var size : Nat__490723111
+    };
+  stable defaultOnboardingItems : [{id : Text; title : Text}];
+  stable extensionRequests :
+    {
+      var root : Node__46230540<Nat, Type__192422056>;
+      var size : Nat__490723111
+    };
+  stable var idCounter : Nat;
+  in var lastActivityTime : ?Int;
+  in messages : Map__605269027<Nat, OldMessage__897832057>;
+  stable milestones :
+    {
+      var root : Node__46230540<Nat, Type__936565974>;
+      var size : Nat__490723111
+    };
+  in var nextActivityId : Nat;
+  in var nextExtensionRequestId : Nat;
+  in var nextMessageId : Nat;
+  in var nextMilestoneId : Nat;
+  in var nextNotificationId : Nat;
+  in var nextProjectId : Nat;
+  in notifications : Map__605269027<Nat, OldNotification__868316919>;
+  stable onboardingChecklists :
+    {
+      var root : Node__46230540<Principal, List__415060402<Type__609020089>>;
+      var size : Nat__490723111
+    };
+  stable performanceScores :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?Type__333968482]];
+      var elementIndex : Nat__490723111
+    };
+  in projects : Map__605269027<Nat, OldProject__561176146>;
+  in userProfiles : Map__605269027<Principal, OldUserProfile__416069324>
+}, {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable activityLogs :
+    {
+      var root : Node__46230540<Nat, Type__512408803>;
+      var size : Nat__490723111
+    };
+  stable announcements :
+    {
+      var root : Node__46230540<Text, Type__610177038>;
+      var size : Nat__490723111
+    };
+  stable branches :
+    {
+      var root : Node__46230540<Text, Type__913430355>;
+      var size : Nat__490723111
+    };
+  stable commits :
+    {
+      var root : Node__46230540<Text, Type__408575921>;
+      var size : Nat__490723111
+    };
+  stable defaultOnboardingItems : [{id : Text; title : Text}];
+  stable extensionRequests :
+    {
+      var root : Node__46230540<Nat, Type__192422056>;
+      var size : Nat__490723111
+    };
+  stable var idCounter : Nat;
+  stable messages :
+    {
+      var root : Node__46230540<Nat, Type__693968840>;
+      var size : Nat__490723111
+    };
+  stable milestones :
+    {
+      var root : Node__46230540<Nat, Type__936565974>;
+      var size : Nat__490723111
+    };
+  stable var nextActivityId : Nat;
+  stable var nextExtensionRequestId : Nat;
+  stable var nextMessageId : Nat;
+  stable var nextMilestoneId : Nat;
+  stable var nextNotificationId : Nat;
+  stable var nextProjectId : Nat;
+  stable notifications :
+    {
+      var root : Node__46230540<Nat, Type__279914274>;
+      var size : Nat__490723111
+    };
+  stable onboardingChecklists :
+    {
+      var root : Node__46230540<Principal, List__415060402<Type__609020089>>;
+      var size : Nat__490723111
+    };
+  stable performanceScores :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?Type__333968482]];
+      var elementIndex : Nat__490723111
+    };
+  stable projects :
+    {
+      var root : Node__46230540<Nat, Type__806252363>;
+      var size : Nat__490723111
+    };
+  stable userProfiles :
+    {
+      var root : Node__46230540<Principal, Type__8591086>;
+      var size : Nat__490723111
+    }
+}) ;

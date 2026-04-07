@@ -6,13 +6,14 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
 import Order "mo:core/Order";
-import Iter "mo:core/Iter";
-import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Set "mo:core/Set";
-import AccessControl "authorization/access-control";
-import MixinAuthorization "authorization/MixinAuthorization";
+import AccessControl "mo:caffeineai-authorization/access-control";
+import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   // --- Types ---
   module UserRole {
@@ -25,6 +26,8 @@ actor {
       email : Text;
       registrationStatus : RegistrationStatus.Type;
       skills : Set.Set<Text>;
+      photoUrl : ?Text;
+      links : [Text];
     };
     public type View = {
       principal : Principal;
@@ -33,11 +36,8 @@ actor {
       email : Text;
       registrationStatus : RegistrationStatus.Type;
       skills : [Text];
-    };
-    public module Compare {
-      public func compareByName(a : Type, b : Type) : Order.Order {
-        Text.compare(a.name, b.name);
-      };
+      photoUrl : ?Text;
+      links : [Text];
     };
     public module ViewCompare {
       public func compareByName(a : View, b : View) : Order.Order {
@@ -55,6 +55,14 @@ actor {
   module ProjectStatus {
     public type Type = { #planning; #active; #completed };
   };
+  module Subtask {
+    public type Type = {
+      id : Text;
+      title : Text;
+      isCompleted : Bool;
+      dueDate : ?Int;
+    };
+  };
   module Project {
     public type Type = {
       id : Nat;
@@ -64,6 +72,9 @@ actor {
       endDate : Text;
       status : ProjectStatus.Type;
       assignedInterns : Set.Set<Principal>;
+      tags : [Text];
+      isPinned : Bool;
+      subtasks : [Subtask.Type];
     };
     public type View = {
       id : Nat;
@@ -73,6 +84,9 @@ actor {
       endDate : Text;
       status : ProjectStatus.Type;
       assignedInterns : [Principal];
+      tags : [Text];
+      isPinned : Bool;
+      subtasks : [Subtask.Type];
     };
     public func toView(project : Type) : View {
       {
@@ -103,6 +117,9 @@ actor {
       createdAt : Int;
     };
   };
+  module MessageType {
+    public type Type = { #text; #file; #image; #systemMsg };
+  };
   module Message {
     public type Type = {
       id : Nat;
@@ -111,6 +128,10 @@ actor {
       content : Text;
       timestamp : Int;
       isRead : Bool;
+      messageType : MessageType.Type;
+      fileUrl : ?Text;
+      fileName : ?Text;
+      fileSize : ?Nat;
     };
     public type View = {
       id : Nat;
@@ -119,6 +140,10 @@ actor {
       content : Text;
       timestamp : Int;
       isRead : Bool;
+      messageType : MessageType.Type;
+      fileUrl : ?Text;
+      fileName : ?Text;
+      fileSize : ?Nat;
     };
   };
   module RegistrationStatus {
@@ -155,6 +180,9 @@ actor {
       #projectAssigned;
       #milestoneUpdate;
       #messageReceived;
+      #announcement;
+      #commitPushed;
+      #performanceScored;
     };
   };
   module Notification {
@@ -215,6 +243,78 @@ actor {
     };
   };
 
+  // --- Phase 6 Types ---
+
+  module FileEntry {
+    public type Type = {
+      name : Text;
+      content : Text;
+      path : Text;
+    };
+  };
+
+  module CommitRecord {
+    public type Type = {
+      id : Text;
+      branchId : Text;
+      authorId : Principal;
+      message : Text;
+      timestamp : Int;
+      files : [FileEntry.Type];
+      parentCommitId : ?Text;
+    };
+  };
+
+  module BranchInfo {
+    public type Type = {
+      id : Text;
+      name : Text;
+      ownerId : Principal;
+      projectId : Text;
+      isLocked : Bool;
+    };
+  };
+
+  module FileVersion {
+    public type Type = {
+      commitId : Text;
+      fileName : Text;
+      content : Text;
+      timestamp : Int;
+    };
+  };
+
+  module Announcement {
+    public type Type = {
+      id : Text;
+      authorId : Principal;
+      title : Text;
+      content : Text;
+      timestamp : Int;
+      isActive : Bool;
+    };
+  };
+
+  module PerformanceScore {
+    public type Type = {
+      internId : Principal;
+      adminId : Principal;
+      score : Nat;
+      feedback : Text;
+      timestamp : Int;
+      category : Text;
+    };
+  };
+
+  module OnboardingItem {
+    public type Type = {
+      id : Text;
+      title : Text;
+      isCompleted : Bool;
+      completedAt : ?Int;
+    };
+  };
+
   // --- Persistent State ---
   let accessControlState = AccessControl.initState();
 
@@ -226,7 +326,7 @@ actor {
   var nextMilestoneId = 1;
   var nextNotificationId = 1;
   var nextExtensionRequestId = 1;
-  var lastActivityTime : ?Int = null;
+  var idCounter = 0;
 
   let userProfiles = Map.empty<Principal, UserProfile.Type>();
   let projects = Map.empty<Nat, Project.Type>();
@@ -235,6 +335,19 @@ actor {
   let milestones = Map.empty<Nat, Milestone.Type>();
   let notifications = Map.empty<Nat, Notification.Type>();
   let extensionRequests = Map.empty<Nat, ExtensionRequest.Type>();
+
+  // Phase 6 state
+  let branches = Map.empty<Text, BranchInfo.Type>();
+  let commits = Map.empty<Text, CommitRecord.Type>();
+  let announcements = Map.empty<Text, Announcement.Type>();
+  let performanceScores = List.empty<PerformanceScore.Type>();
+  let onboardingChecklists = Map.empty<Principal, List.List<OnboardingItem.Type>>();
+
+  // --- ID Generation Helper ---
+  func generateId() : Text {
+    idCounter += 1;
+    Time.now().toText() # "_" # idCounter.toText();
+  };
 
   // --- Notification Helper ---
   func createNotificationInternal(recipient : Principal, notificationType : NotificationType.Type, message : Text, relatedId : Nat) {
@@ -261,6 +374,9 @@ actor {
       endDate;
       status = #planning;
       assignedInterns = Set.empty<Principal>();
+      tags = [];
+      isPinned = false;
+      subtasks = [];
     };
     projects.add(nextProjectId, newProject);
     nextProjectId += 1;
@@ -300,7 +416,7 @@ actor {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can remove projects");
     };
-    let existingProject = getProjectById(id);
+    let _ = getProjectById(id);
     projects.remove(id);
   };
 
@@ -310,7 +426,6 @@ actor {
       Runtime.trap("Unauthorized: Only admins can assign interns to projects");
     };
     updateProjectWithIntern(projectId, internPrincipal, true);
-    // Notify the intern
     let project = getProjectById(projectId);
     createNotificationInternal(
       internPrincipal,
@@ -341,6 +456,65 @@ actor {
       assignedInterns = updatedAssignedInterns;
     };
     updateProjectInternal(updatedProject);
+  };
+
+  // --- Project Enhancement Functions ---
+  public shared ({ caller }) func addProjectTag(projectId : Nat, tag : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can add project tags");
+    };
+    let project = getProjectById(projectId);
+    let existingTags = project.tags;
+    // Only add if not already present
+    let alreadyExists = existingTags.find(func(t : Text) : Bool { t == tag });
+    switch (alreadyExists) {
+      case (?_) {};
+      case null {
+        updateProjectInternal({ project with tags = existingTags.concat([tag]) });
+      };
+    };
+  };
+
+  public shared ({ caller }) func toggleProjectPin(projectId : Nat) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can pin/unpin projects");
+    };
+    let project = getProjectById(projectId);
+    updateProjectInternal({ project with isPinned = not project.isPinned });
+  };
+
+  public shared ({ caller }) func addSubtask(projectId : Nat, title : Text, dueDate : ?Int) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can add subtasks");
+    };
+    let project = getProjectById(projectId);
+    let newSubtask : Subtask.Type = {
+      id = generateId();
+      title;
+      isCompleted = false;
+      dueDate;
+    };
+    updateProjectInternal({ project with subtasks = project.subtasks.concat([newSubtask]) });
+  };
+
+  public shared ({ caller }) func toggleSubtask(projectId : Nat, subtaskId : Text) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can toggle subtasks");
+    };
+    let project = getProjectById(projectId);
+    let updatedSubtasks = project.subtasks.map(
+      func(st : Subtask.Type) : Subtask.Type {
+        if (st.id == subtaskId) { { st with isCompleted = not st.isCompleted } } else { st };
+      }
+    );
+    updateProjectInternal({ project with subtasks = updatedSubtasks });
+  };
+
+  public query ({ caller }) func getPinnedProjects() : async [Project.View] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view pinned projects");
+    };
+    projects.values().toArray().filter(func(p : Project.Type) : Bool { p.isPinned }).map(Project.toView);
   };
 
   // --- Activity Log Functions ---
@@ -405,7 +579,7 @@ actor {
   };
 
   // --- Messaging Functions ---
-  func createMessageInternal(caller : Principal, recipient : Principal, content : Text) : Message.Type {
+  func createMessageInternal(caller : Principal, recipient : Principal, content : Text, msgType : MessageType.Type, fileUrl : ?Text, fileName : ?Text, fileSize : ?Nat) : Message.Type {
     let newMessage : Message.Type = {
       id = nextMessageId;
       sender = caller;
@@ -413,6 +587,10 @@ actor {
       content;
       timestamp = Time.now();
       isRead = false;
+      messageType = msgType;
+      fileUrl;
+      fileName;
+      fileSize;
     };
     messages.add(nextMessageId, newMessage);
     nextMessageId += 1;
@@ -423,7 +601,18 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can send messages");
     };
-    createMessageInternal(caller, recipient, content);
+    createMessageInternal(caller, recipient, content, #text, null, null, null);
+  };
+
+  public shared ({ caller }) func sendFileMessage(recipient : Principal, fileUrl : Text, fileName : Text, fileSize : Nat, messageType : { #file; #image }) : async Message.View {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can send file messages");
+    };
+    let msgType : MessageType.Type = switch (messageType) {
+      case (#file) { #file };
+      case (#image) { #image };
+    };
+    createMessageInternal(caller, recipient, "", msgType, ?fileUrl, ?fileName, ?fileSize);
   };
 
   public query ({ caller }) func getMessagesForCaller() : async [Message.View] {
@@ -445,11 +634,41 @@ actor {
     };
     let filteredResults = List.empty<Message.Type>();
     for (message in messages.values()) {
-      if ((message.sender == caller and message.recipient == otherUser) or (message.sender == otherUser and message.recipient == caller)) {
+      if (
+        (message.sender == caller and message.recipient == otherUser) or
+        (message.sender == otherUser and message.recipient == caller)
+      ) {
         filteredResults.add(message);
       };
     };
-    filteredResults.toArray();
+    filteredResults.toArray().sort(func(a : Message.Type, b : Message.Type) : Order.Order {
+      Int.compare(a.timestamp, b.timestamp)
+    });
+  };
+
+  public query ({ caller }) func getConversationMessages(withUser : Principal, limit : Nat, before : ?Int) : async [Message.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view conversations");
+    };
+    let filteredResults = List.empty<Message.Type>();
+    for (message in messages.values()) {
+      let inConversation = (message.sender == caller and message.recipient == withUser) or
+                           (message.sender == withUser and message.recipient == caller);
+      let beforeFilter = switch (before) {
+        case (null) { true };
+        case (?ts) { message.timestamp < ts };
+      };
+      if (inConversation and beforeFilter) {
+        filteredResults.add(message);
+      };
+    };
+    let sorted = filteredResults.toArray().sort(func(a : Message.Type, b : Message.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+    let takeCount = if (sorted.size() < limit) sorted.size() else limit;
+    Array.tabulate(takeCount, func(i : Nat) : Message.Type { sorted[i] }).sort(
+      func(a : Message.Type, b : Message.Type) : Order.Order { Int.compare(a.timestamp, b.timestamp) }
+    );
   };
 
   public shared ({ caller }) func markMessageRead(messageId : Nat) : async () {
@@ -511,9 +730,8 @@ actor {
           Runtime.trap("Unauthorized: Can only update your own milestones");
         };
         milestones.add(milestoneId, { milestone with status });
-        // If milestone completed, notify all admins
         if (status == #completed) {
-          for ((principal, user) in userProfiles.entries()) {
+          for ((principal, _) in userProfiles.entries()) {
             if (AccessControl.isAdmin(accessControlState, principal)) {
               createNotificationInternal(
                 principal,
@@ -574,7 +792,6 @@ actor {
     if (not project.assignedInterns.contains(caller)) {
       Runtime.trap("Unauthorized: You are not assigned to this project");
     };
-    // Check for existing pending request
     for (req in extensionRequests.values()) {
       if (req.projectId == projectId and req.internPrincipal == caller and req.status == #pending) {
         Runtime.trap("A pending extension request already exists for this project");
@@ -592,7 +809,6 @@ actor {
     };
     extensionRequests.add(nextExtensionRequestId, newRequest);
     nextExtensionRequestId += 1;
-    // Notify all admins
     for ((principal, _) in userProfiles.entries()) {
       if (AccessControl.isAdmin(accessControlState, principal)) {
         createNotificationInternal(
@@ -616,14 +832,18 @@ actor {
         filteredResults.add(req);
       };
     };
-    filteredResults.toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+    filteredResults.toArray().sort(func(a : ExtensionRequest.Type, b : ExtensionRequest.Type) : Order.Order {
+      Int.compare(b.createdAt, a.createdAt)
+    });
   };
 
   public query ({ caller }) func getAllExtensionRequests() : async [ExtensionRequest.View] {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can view all extension requests");
     };
-    extensionRequests.values().toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+    extensionRequests.values().toArray().sort(func(a : ExtensionRequest.Type, b : ExtensionRequest.Type) : Order.Order {
+      Int.compare(b.createdAt, a.createdAt)
+    });
   };
 
   public shared ({ caller }) func respondToExtensionRequest(requestId : Nat, approved : Bool, adminNote : ?Text) : async () {
@@ -638,12 +858,10 @@ actor {
         };
         let newStatus = if (approved) { #approved } else { #rejected };
         extensionRequests.add(requestId, { req with status = newStatus; adminNote });
-        // If approved, update project end date
         if (approved) {
           let project = getProjectById(req.projectId);
           updateProjectInternal({ project with endDate = req.requestedEndDate });
         };
-        // Notify intern
         let statusText = if (approved) { "approved" } else { "rejected" };
         let project = getProjectById(req.projectId);
         createNotificationInternal(
@@ -667,7 +885,9 @@ actor {
         filteredResults.add(n);
       };
     };
-    filteredResults.toArray().sort(func(a, b) { Int.compare(b.timestamp, a.timestamp) });
+    filteredResults.toArray().sort(func(a : Notification.Type, b : Notification.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
   };
 
   public query ({ caller }) func getUnreadNotificationCount() : async Nat {
@@ -733,7 +953,9 @@ actor {
       if (user.registrationStatus == #active) { activeInternCount += 1 };
     };
     let allActivities = activityLogs.values().toArray();
-    let sortedActivities = allActivities.sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+    let sortedActivities = allActivities.sort(func(a : ActivityLog.Type, b : ActivityLog.Type) : Order.Order {
+      Int.compare(b.createdAt, a.createdAt)
+    });
     let recentCount = if (sortedActivities.size() < 10) sortedActivities.size() else 10;
     let recentActivities = Array.tabulate(recentCount, func(i : Nat) : ActivityLog.Type { sortedActivities[i] });
     {
@@ -759,9 +981,10 @@ actor {
       email;
       skills = Set.empty<Text>();
       registrationStatus = #pending;
+      photoUrl = null;
+      links = [];
     };
     userProfiles.add(caller, newState);
-    // Notify all admins about new approval request
     for ((principal, _) in userProfiles.entries()) {
       if (AccessControl.isAdmin(accessControlState, principal)) {
         createNotificationInternal(
@@ -772,9 +995,11 @@ actor {
         );
       };
     };
+    // Initialize onboarding checklist for new intern
+    initOnboardingForIntern(caller);
   };
 
-  public shared ({ caller }) func updateProfile({ name : Text; bio : Text; email : Text; skills : [Text] }) : async () {
+  public shared ({ caller }) func updateProfile({ name : Text; bio : Text; email : Text; skills : [Text]; photoUrl : ?Text; links : [Text] }) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can update profiles");
     };
@@ -785,6 +1010,8 @@ actor {
       bio;
       email;
       skills = Set.fromArray<Text>(skills);
+      photoUrl;
+      links;
     };
     userProfiles.add(caller, updatedState);
   };
@@ -805,20 +1032,12 @@ actor {
 
   func approveRegistration(userPrincipal : Principal) {
     let existingState = getUserProfileInternal(userPrincipal);
-    let updatedState : UserProfile.Type = {
-      existingState with
-      registrationStatus = #active;
-    };
-    userProfiles.add(userPrincipal, updatedState);
+    userProfiles.add(userPrincipal, { existingState with registrationStatus = #active });
   };
 
   func rejectRegistration(userPrincipal : Principal) {
     let existingState = getUserProfileInternal(userPrincipal);
-    let updatedState : UserProfile.Type = {
-      existingState with
-      registrationStatus = #rejected;
-    };
-    userProfiles.add(userPrincipal, updatedState);
+    userProfiles.add(userPrincipal, { existingState with registrationStatus = #rejected });
   };
 
   func getUserProfileInternal(userPrincipal : Principal) : UserProfile.Type {
@@ -828,7 +1047,7 @@ actor {
     };
   };
 
-  // --- Admin Promotion Function
+  // --- Admin Promotion Function ---
   public shared ({ caller }) func promoteToAdmin(user : Principal) : async () {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can promote to admin");
@@ -843,7 +1062,7 @@ actor {
 
   func getAllUserProfilesInternal() : [UserProfile.View] {
     userProfiles.entries().toArray().map(
-      func((p, u)) { UserProfile.toView(u, p) }
+      func((p, u) : (Principal, UserProfile.Type)) : UserProfile.View { UserProfile.toView(u, p) }
     ).sort(UserProfile.ViewCompare.compareByName);
   };
 
@@ -854,7 +1073,9 @@ actor {
         filteredResults.add((principal, user));
       };
     };
-    filteredResults.toArray().map(func((p, u)) { UserProfile.toView(u, p) }).sort(UserProfile.ViewCompare.compareByName);
+    filteredResults.toArray().map(
+      func((p, u) : (Principal, UserProfile.Type)) : UserProfile.View { UserProfile.toView(u, p) }
+    ).sort(UserProfile.ViewCompare.compareByName);
   };
 
   public query ({ caller }) func getAllProjects() : async [Project.View] {
@@ -901,14 +1122,14 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can view profiles");
     };
-    userProfiles.get(caller).map(func(p) { UserProfile.toView(p, caller) });
+    userProfiles.get(caller).map(func(p : UserProfile.Type) : UserProfile.View { UserProfile.toView(p, caller) });
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile.View {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
-    userProfiles.get(user).map(func(p) { UserProfile.toView(p, user) });
+    userProfiles.get(user).map(func(p : UserProfile.Type) : UserProfile.View { UserProfile.toView(p, user) });
   };
 
   public query ({ caller }) func getUserRole(user : Principal) : async UserRole.Type {
@@ -935,7 +1156,9 @@ actor {
         filteredResults.add((principal, user));
       };
     };
-    filteredResults.toArray().map(func((p, u)) { UserProfile.toView(u, p) }).sort(UserProfile.ViewCompare.compareByName);
+    filteredResults.toArray().map(
+      func((p, u) : (Principal, UserProfile.Type)) : UserProfile.View { UserProfile.toView(u, p) }
+    ).sort(UserProfile.ViewCompare.compareByName);
   };
 
   public query ({ caller }) func getAllPendingInterns() : async [UserProfile.View] {
@@ -956,12 +1179,418 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only authenticated users can save profiles");
     };
+    let existing = userProfiles.get(caller);
+    let photoUrl = switch (existing) {
+      case (?p) { p.photoUrl };
+      case null { null };
+    };
+    let links = switch (existing) {
+      case (?p) { p.links };
+      case null { [] };
+    };
     userProfiles.add(
       caller,
       {
         profile with
         skills = Set.fromArray(profile.skills);
+        photoUrl = switch (profile.photoUrl) { case (?u) { ?u }; case null { photoUrl } };
+        links = if (profile.links.size() > 0) profile.links else links;
       },
     );
+  };
+
+  // --- Search Functions ---
+  public query ({ caller }) func searchInterns(searchTerm : Text) : async [UserProfile.View] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can search interns");
+    };
+    let lowerQuery = searchTerm.toLower();
+    let filteredResults = List.empty<(Principal, UserProfile.Type)>();
+    for ((principal, user) in userProfiles.entries()) {
+      if (
+        user.name.toLower().contains(#text lowerQuery) or
+        user.email.toLower().contains(#text lowerQuery)
+      ) {
+        filteredResults.add((principal, user));
+      };
+    };
+    filteredResults.toArray().map(
+      func((p, u) : (Principal, UserProfile.Type)) : UserProfile.View { UserProfile.toView(u, p) }
+    );
+  };
+
+  public query ({ caller }) func searchProjects(searchTerm : Text) : async [Project.View] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can search projects");
+    };
+    let lowerQuery = searchTerm.toLower();
+    let filteredResults = List.empty<Project.Type>();
+    for (project in projects.values()) {
+      if (
+        project.title.toLower().contains(#text lowerQuery) or
+        project.description.toLower().contains(#text lowerQuery)
+      ) {
+        filteredResults.add(project);
+      };
+    };
+    filteredResults.toArray().map(Project.toView);
+  };
+
+  // ============================================================
+  // --- Phase 6: Commit/Version System ---
+  // ============================================================
+
+  public shared ({ caller }) func createBranch(name : Text, projectId : Text, ownerId : Principal) : async BranchInfo.Type {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can create branches");
+    };
+    let branchId = generateId();
+    let newBranch : BranchInfo.Type = {
+      id = branchId;
+      name;
+      ownerId;
+      projectId;
+      isLocked = false;
+    };
+    branches.add(branchId, newBranch);
+    newBranch;
+  };
+
+  public query ({ caller }) func getBranchForIntern(internId : Principal) : async ?BranchInfo.Type {
+    if (caller != internId and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own branch");
+    };
+    branches.values().toArray().find(func(b : BranchInfo.Type) : Bool { b.ownerId == internId });
+  };
+
+  public query ({ caller }) func getAllBranches() : async [BranchInfo.Type] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all branches");
+    };
+    branches.values().toArray();
+  };
+
+  public shared ({ caller }) func toggleBranchLock(branchId : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can lock/unlock branches");
+    };
+    switch (branches.get(branchId)) {
+      case (null) { Runtime.trap("Branch not found") };
+      case (?branch) {
+        branches.add(branchId, { branch with isLocked = not branch.isLocked });
+      };
+    };
+  };
+
+  public shared ({ caller }) func pushCommit(branchId : Text, message : Text, files : [FileEntry.Type]) : async CommitRecord.Type {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can push commits");
+    };
+    let branch = switch (branches.get(branchId)) {
+      case (null) { Runtime.trap("Branch not found") };
+      case (?b) { b };
+    };
+    if (branch.isLocked) {
+      Runtime.trap("Branch is locked. Contact your admin.");
+    };
+    if (branch.ownerId != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You do not own this branch");
+    };
+    // Find latest commit to set as parent
+    let branchCommits = commits.values().toArray().filter(func(c : CommitRecord.Type) : Bool { c.branchId == branchId });
+    let sortedCommits = branchCommits.sort(func(a : CommitRecord.Type, b : CommitRecord.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+    let parentCommitId = if (sortedCommits.size() > 0) { ?sortedCommits[0].id } else { null };
+    let commitId = generateId();
+    let newCommit : CommitRecord.Type = {
+      id = commitId;
+      branchId;
+      authorId = caller;
+      message;
+      timestamp = Time.now();
+      files;
+      parentCommitId;
+    };
+    commits.add(commitId, newCommit);
+    // Notify all admins about new commit
+    for ((principal, _) in userProfiles.entries()) {
+      if (AccessControl.isAdmin(accessControlState, principal)) {
+        createNotificationInternal(
+          principal,
+          #commitPushed,
+          "New commit pushed to branch: " # branch.name # " — " # message,
+          0
+        );
+      };
+    };
+    newCommit;
+  };
+
+  public query ({ caller }) func getCommitsForBranch(branchId : Text) : async [CommitRecord.Type] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view commits");
+    };
+    let branch = switch (branches.get(branchId)) {
+      case (null) { Runtime.trap("Branch not found") };
+      case (?b) { b };
+    };
+    if (branch.ownerId != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You do not have access to this branch");
+    };
+    commits.values().toArray().filter(func(c : CommitRecord.Type) : Bool { c.branchId == branchId }).sort(
+      func(a : CommitRecord.Type, b : CommitRecord.Type) : Order.Order { Int.compare(b.timestamp, a.timestamp) }
+    );
+  };
+
+  public query ({ caller }) func getAllCommits() : async [CommitRecord.Type] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all commits");
+    };
+    commits.values().toArray().sort(func(a : CommitRecord.Type, b : CommitRecord.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+  };
+
+  public query ({ caller }) func getCommitById(commitId : Text) : async ?CommitRecord.Type {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view commits");
+    };
+    commits.get(commitId);
+  };
+
+  public query ({ caller }) func getFileHistory(branchId : Text, fileName : Text) : async [FileVersion.Type] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view file history");
+    };
+    let branch = switch (branches.get(branchId)) {
+      case (null) { Runtime.trap("Branch not found") };
+      case (?b) { b };
+    };
+    if (branch.ownerId != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You do not have access to this branch");
+    };
+    let versions = List.empty<FileVersion.Type>();
+    let branchCommits = commits.values().toArray().filter(func(c : CommitRecord.Type) : Bool { c.branchId == branchId });
+    let sortedCommits = branchCommits.sort(func(a : CommitRecord.Type, b : CommitRecord.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+    for (commit in sortedCommits.values()) {
+      for (file in commit.files.values()) {
+        if (file.name == fileName or file.path == fileName) {
+          versions.add({
+            commitId = commit.id;
+            fileName = file.name;
+            content = file.content;
+            timestamp = commit.timestamp;
+          });
+        };
+      };
+    };
+    versions.toArray();
+  };
+
+  public query ({ caller }) func getLatestFiles(branchId : Text) : async [FileEntry.Type] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view files");
+    };
+    let branch = switch (branches.get(branchId)) {
+      case (null) { Runtime.trap("Branch not found") };
+      case (?b) { b };
+    };
+    if (branch.ownerId != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: You do not have access to this branch");
+    };
+    let branchCommits = commits.values().toArray().filter(func(c : CommitRecord.Type) : Bool { c.branchId == branchId });
+    let sortedCommits = branchCommits.sort(func(a : CommitRecord.Type, b : CommitRecord.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+    // Build latest version of each file (latest commit wins per path)
+    let latestByPath = Map.empty<Text, FileEntry.Type>();
+    // Process oldest to newest so newest overwrites
+    let reversedCommits = sortedCommits.reverse();
+    for (commit in reversedCommits.values()) {
+      for (file in commit.files.values()) {
+        latestByPath.add(file.path, file);
+      };
+    };
+    latestByPath.values().toArray();
+  };
+
+  // ============================================================
+  // --- Phase 6: Announcements ---
+  // ============================================================
+
+  public shared ({ caller }) func createAnnouncement(title : Text, content : Text) : async Announcement.Type {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can create announcements");
+    };
+    let announcementId = generateId();
+    let newAnnouncement : Announcement.Type = {
+      id = announcementId;
+      authorId = caller;
+      title;
+      content;
+      timestamp = Time.now();
+      isActive = true;
+    };
+    announcements.add(announcementId, newAnnouncement);
+    // Notify all active interns
+    for ((principal, user) in userProfiles.entries()) {
+      if (user.registrationStatus == #active) {
+        createNotificationInternal(
+          principal,
+          #announcement,
+          "New announcement: " # title,
+          0
+        );
+      };
+    };
+    newAnnouncement;
+  };
+
+  public query ({ caller }) func getActiveAnnouncements() : async [Announcement.Type] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can view announcements");
+    };
+    announcements.values().toArray().filter(func(a : Announcement.Type) : Bool { a.isActive }).sort(
+      func(a : Announcement.Type, b : Announcement.Type) : Order.Order { Int.compare(b.timestamp, a.timestamp) }
+    );
+  };
+
+  public query ({ caller }) func getAllAnnouncements() : async [Announcement.Type] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all announcements");
+    };
+    announcements.values().toArray().sort(func(a : Announcement.Type, b : Announcement.Type) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+  };
+
+  public shared ({ caller }) func deactivateAnnouncement(id : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can deactivate announcements");
+    };
+    switch (announcements.get(id)) {
+      case (null) { Runtime.trap("Announcement not found") };
+      case (?announcement) {
+        announcements.add(id, { announcement with isActive = false });
+      };
+    };
+  };
+
+  // ============================================================
+  // --- Phase 6: Performance Scoring ---
+  // ============================================================
+
+  public shared ({ caller }) func addPerformanceScore(internId : Principal, score : Nat, feedback : Text, category : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can add performance scores");
+    };
+    if (score < 1 or score > 5) {
+      Runtime.trap("Score must be between 1 and 5");
+    };
+    let newScore : PerformanceScore.Type = {
+      internId;
+      adminId = caller;
+      score;
+      feedback;
+      timestamp = Time.now();
+      category;
+    };
+    performanceScores.add(newScore);
+    // Notify the intern
+    createNotificationInternal(
+      internId,
+      #performanceScored,
+      "You received a performance score of " # score.toText() # "/5 for " # category,
+      0
+    );
+  };
+
+  public query ({ caller }) func getScoresForIntern(internId : Principal) : async [PerformanceScore.Type] {
+    if (caller != internId and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own performance scores");
+    };
+    performanceScores.toArray().filter(func(s : PerformanceScore.Type) : Bool { s.internId == internId });
+  };
+
+  public query ({ caller }) func getAverageScore(internId : Principal) : async ?Float {
+    if (caller != internId and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own performance scores");
+    };
+    let internScores = performanceScores.toArray().filter(func(s : PerformanceScore.Type) : Bool { s.internId == internId });
+    if (internScores.size() == 0) {
+      return null;
+    };
+    var total = 0;
+    for (s in internScores.values()) {
+      total += s.score;
+    };
+    ?(total.toFloat() / internScores.size().toFloat());
+  };
+
+  // ============================================================
+  // --- Phase 6: Onboarding Checklist ---
+  // ============================================================
+
+  let defaultOnboardingItems : [{ id : Text; title : Text }] = [
+    { id = "profile"; title = "Complete your profile" },
+    { id = "project"; title = "View your assigned project" },
+    { id = "milestone"; title = "Create your first milestone" },
+    { id = "activity"; title = "Log your first activity" },
+    { id = "message"; title = "Send a message to your admin" },
+    { id = "branch"; title = "Access your code branch" },
+  ];
+
+  func initOnboardingForIntern(internId : Principal) {
+    let items = List.empty<OnboardingItem.Type>();
+    for (item in defaultOnboardingItems.values()) {
+      items.add({
+        id = item.id;
+        title = item.title;
+        isCompleted = false;
+        completedAt = null;
+      });
+    };
+    onboardingChecklists.add(internId, items);
+  };
+
+  public query ({ caller }) func getOnboardingChecklist(internId : Principal) : async [OnboardingItem.Type] {
+    if (caller != internId and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own onboarding checklist");
+    };
+    switch (onboardingChecklists.get(internId)) {
+      case (null) { [] };
+      case (?list) { list.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func completeOnboardingItem(itemId : Text) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can complete onboarding items");
+    };
+    switch (onboardingChecklists.get(caller)) {
+      case (null) { Runtime.trap("No onboarding checklist found") };
+      case (?list) {
+        let now = Time.now();
+        list.mapInPlace(func(item : OnboardingItem.Type) : OnboardingItem.Type {
+          if (item.id == itemId and not item.isCompleted) {
+            { item with isCompleted = true; completedAt = ?now }
+          } else {
+            item
+          }
+        });
+      };
+    };
+  };
+
+  public shared ({ caller }) func initializeOnboarding() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only authenticated users can initialize onboarding");
+    };
+    if (not onboardingChecklists.containsKey(caller)) {
+      initOnboardingForIntern(caller);
+    };
   };
 };

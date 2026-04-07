@@ -75,6 +75,7 @@ export default function AdminSettingsPage() {
         email: form.email,
         bio: form.bio,
         skills: form.skills,
+        links: [],
       });
       toast.success("Profile updated");
       refresh();

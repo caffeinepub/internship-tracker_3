@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ClipboardList, Clock, Loader2, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View, View__3 } from "../../backend";
+import type { View, View__4 } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 
@@ -31,7 +31,7 @@ export default function ActivityLogPage() {
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
   const [projects, setProjects] = useState<View[]>([]);
-  const [activities, setActivities] = useState<View__3[]>([]);
+  const [activities, setActivities] = useState<View__4[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [submitting, setSubmitting] = useState(false);

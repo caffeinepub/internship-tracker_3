@@ -6,23 +6,28 @@ import {
   Activity,
   CheckSquare,
   FolderKanban,
+  GitCommit,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
+  Search,
   UserCircle,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import NotificationBell from "../components/NotificationBell";
+import NotificationCenter from "../components/NotificationCenter";
+import ThemeToggle from "../components/ThemeToggle";
 import { useActor } from "../hooks/useActor";
 import { useAuth } from "../hooks/useAuth";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import MessagesPage from "../pages/MessagesPage";
 import ActivityLogPage from "../pages/intern/ActivityLogPage";
+import CommitWorkspacePage from "../pages/intern/CommitWorkspacePage";
 import InternDashboard from "../pages/intern/InternDashboard";
 import InternMilestonesPage from "../pages/intern/InternMilestonesPage";
 import InternProfilePage from "../pages/intern/InternProfilePage";
+import InternSearchPage from "../pages/intern/InternSearchPage";
 import MyProjectPage from "../pages/intern/MyProjectPage";
 
 type InternPage =
@@ -31,7 +36,9 @@ type InternPage =
   | "milestones"
   | "activity"
   | "messages"
-  | "profile";
+  | "profile"
+  | "commits"
+  | "search";
 
 const navItems: { page: InternPage; label: string; icon: React.ElementType }[] =
   [
@@ -39,7 +46,9 @@ const navItems: { page: InternPage; label: string; icon: React.ElementType }[] =
     { page: "projects", label: "My Projects", icon: FolderKanban },
     { page: "milestones", label: "Milestones", icon: CheckSquare },
     { page: "activity", label: "Activity Log", icon: Activity },
+    { page: "commits", label: "My Commits", icon: GitCommit },
     { page: "messages", label: "Messages", icon: MessageSquare },
+    { page: "search", label: "Search", icon: Search },
     { page: "profile", label: "Profile", icon: UserCircle },
   ];
 
@@ -58,6 +67,11 @@ function SidebarContent({
   const { profile } = useAuth();
   const { actor } = useActor();
 
+  const handleNavigate = (page: InternPage) => {
+    onNavigate(page);
+    onClose?.();
+  };
+
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       <div className="px-5 py-5 border-b border-sidebar-border">
@@ -73,19 +87,20 @@ function SidebarContent({
             </p>
             <p className="text-xs text-sidebar-foreground/50">Intern Portal</p>
           </div>
-          <NotificationBell actor={actor} />
+          <ThemeToggle />
+          <NotificationCenter
+            actor={actor}
+            onNavigate={(page) => handleNavigate(page as InternPage)}
+          />
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => (
           <button
             key={item.page}
             type="button"
-            onClick={() => {
-              onNavigate(item.page);
-              onClose?.();
-            }}
+            onClick={() => handleNavigate(item.page)}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left",
               currentPage === item.page
@@ -161,15 +176,23 @@ export default function InternShell() {
   const renderPage = () => {
     switch (currentPage) {
       case "dashboard":
-        return <InternDashboard />;
+        return (
+          <InternDashboard
+            onNavigate={(page) => setCurrentPage(page as InternPage)}
+          />
+        );
       case "projects":
         return <MyProjectPage />;
       case "milestones":
         return <InternMilestonesPage />;
       case "activity":
         return <ActivityLogPage />;
+      case "commits":
+        return <CommitWorkspacePage />;
       case "messages":
         return <MessagesPage />;
+      case "search":
+        return <InternSearchPage />;
       case "profile":
         return <InternProfilePage />;
     }
@@ -205,9 +228,10 @@ export default function InternShell() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-display font-semibold text-sm">
+          <span className="font-display font-semibold text-sm flex-1">
             Internship Tracker
           </span>
+          <ThemeToggle />
         </div>
 
         <main className="flex-1 overflow-y-auto">{renderPage()}</main>

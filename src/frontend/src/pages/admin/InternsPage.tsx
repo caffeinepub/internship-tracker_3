@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -11,10 +12,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Search, ShieldCheck, XCircle } from "lucide-react";
+import {
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  ShieldCheck,
+  Star,
+  XCircle,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { View__2 } from "../../backend";
+import { PerformanceScoreCard } from "../../components/PerformanceScoreCard";
 import { useActor } from "../../hooks/useActor";
 
 function statusBadge(status: string) {
@@ -51,6 +61,7 @@ function InternTable({
   onPromote,
   actionLoading,
   searchQuery,
+  showScoring,
 }: {
   interns: View__2[];
   loading: boolean;
@@ -59,7 +70,10 @@ function InternTable({
   onPromote?: (_principal: string) => void;
   actionLoading: string | null;
   searchQuery: string;
+  showScoring?: boolean;
 }) {
+  const [expandedScoring, setExpandedScoring] = useState<string | null>(null);
+
   const filtered = interns.filter(
     (i) =>
       i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,102 +102,149 @@ function InternTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table data-ocid="interns.table">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Bio</TableHead>
-            <TableHead>Skills</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((intern, idx) => {
-            const principalStr = intern.principal.toString();
-            return (
-              <TableRow
-                key={principalStr}
-                data-ocid={`interns.item.${idx + 1}`}
-              >
-                <TableCell className="font-medium">{intern.name}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {intern.email}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm max-w-[160px] truncate">
-                  {intern.bio || "—"}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {intern.skills.length > 0 ? (
-                      intern.skills.slice(0, 3).map((s) => (
-                        <Badge key={s} variant="secondary" className="text-xs">
-                          {s}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                    {intern.skills.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{intern.skills.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {statusBadge(intern.registrationStatus as string)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    {onApprove && intern.registrationStatus !== "active" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-success hover:text-success hover:bg-success/10"
-                        onClick={() => onApprove(principalStr)}
-                        disabled={actionLoading === principalStr}
-                        data-ocid={`interns.confirm_button.${idx + 1}`}
-                      >
-                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                        Approve
-                      </Button>
-                    )}
-                    {onReject && intern.registrationStatus !== "rejected" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => onReject(principalStr)}
-                        disabled={actionLoading === principalStr}
-                        data-ocid={`interns.delete_button.${idx + 1}`}
-                      >
-                        <XCircle className="h-3.5 w-3.5 mr-1" />
-                        Reject
-                      </Button>
-                    )}
-                    {onPromote && intern.registrationStatus === "active" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs hover:bg-accent/10"
-                        onClick={() => onPromote(principalStr)}
-                        disabled={actionLoading === principalStr}
-                        data-ocid={`interns.secondary_button.${idx + 1}`}
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                        Make Admin
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+    <div>
+      <div className="overflow-x-auto">
+        <Table data-ocid="interns.table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Bio</TableHead>
+              <TableHead>Skills</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((intern, idx) => {
+              const principalStr = intern.principal.toString();
+              const isExpanded = expandedScoring === principalStr;
+              return (
+                <>
+                  <TableRow
+                    key={principalStr}
+                    data-ocid={`interns.item.${idx + 1}`}
+                    className={isExpanded ? "bg-muted/30" : ""}
+                  >
+                    <TableCell className="font-medium">{intern.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {intern.email}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm max-w-[160px] truncate">
+                      {intern.bio || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {intern.skills.length > 0 ? (
+                          intern.skills.slice(0, 3).map((s) => (
+                            <Badge
+                              key={s}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {s}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            —
+                          </span>
+                        )}
+                        {intern.skills.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{intern.skills.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {statusBadge(intern.registrationStatus as string)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {showScoring &&
+                          intern.registrationStatus === "active" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
+                              onClick={() =>
+                                setExpandedScoring(
+                                  isExpanded ? null : principalStr,
+                                )
+                              }
+                              data-ocid={`interns.score_button.${idx + 1}`}
+                            >
+                              <Star className="h-3.5 w-3.5 mr-1" />
+                              Score
+                              {isExpanded ? (
+                                <ChevronUp className="h-3 w-3 ml-0.5" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3 ml-0.5" />
+                              )}
+                            </Button>
+                          )}
+                        {onApprove &&
+                          intern.registrationStatus !== "active" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-success hover:text-success hover:bg-success/10"
+                              onClick={() => onApprove(principalStr)}
+                              disabled={actionLoading === principalStr}
+                              data-ocid={`interns.confirm_button.${idx + 1}`}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              Approve
+                            </Button>
+                          )}
+                        {onReject &&
+                          intern.registrationStatus !== "rejected" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => onReject(principalStr)}
+                              disabled={actionLoading === principalStr}
+                              data-ocid={`interns.delete_button.${idx + 1}`}
+                            >
+                              <XCircle className="h-3.5 w-3.5 mr-1" />
+                              Reject
+                            </Button>
+                          )}
+                        {onPromote &&
+                          intern.registrationStatus === "active" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs hover:bg-accent/10"
+                              onClick={() => onPromote(principalStr)}
+                              disabled={actionLoading === principalStr}
+                              data-ocid={`interns.secondary_button.${idx + 1}`}
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                              Make Admin
+                            </Button>
+                          )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && showScoring && (
+                    <TableRow key={`${principalStr}-scoring`}>
+                      <TableCell colSpan={6} className="bg-muted/20 p-4">
+                        <PerformanceScoreCard
+                          internId={intern.principal}
+                          internName={intern.name}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -300,7 +361,7 @@ export default function InternsPage() {
             Interns
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Manage intern registrations and profiles
+            Manage intern registrations and performance scores
           </p>
         </div>
       </div>
@@ -329,6 +390,9 @@ export default function InternsPage() {
           <TabsTrigger value="active" data-ocid="interns.tab">
             Active
           </TabsTrigger>
+          <TabsTrigger value="scoring" data-ocid="interns.tab">
+            Scoring
+          </TabsTrigger>
           <TabsTrigger value="rejected" data-ocid="interns.tab">
             Rejected
           </TabsTrigger>
@@ -343,11 +407,51 @@ export default function InternsPage() {
           <TabsContent value="active" className="m-0">
             <InternTable interns={activeInterns} {...tableProps} />
           </TabsContent>
+          <TabsContent value="scoring" className="m-0">
+            {loading ? (
+              <div className="p-6 space-y-4">
+                {[1, 2].map((i) => (
+                  <Skeleton key={i} className="h-36 w-full" />
+                ))}
+              </div>
+            ) : activeInterns.filter(
+                (i) =>
+                  i.name.toLowerCase().includes(search.toLowerCase()) ||
+                  i.email.toLowerCase().includes(search.toLowerCase()),
+              ).length === 0 ? (
+              <div
+                className="p-10 text-center text-muted-foreground text-sm"
+                data-ocid="interns.scoring_empty"
+              >
+                No active interns to score
+              </div>
+            ) : (
+              <div className="p-4 space-y-4" data-ocid="interns.scoring_list">
+                {activeInterns
+                  .filter(
+                    (i) =>
+                      i.name.toLowerCase().includes(search.toLowerCase()) ||
+                      i.email.toLowerCase().includes(search.toLowerCase()),
+                  )
+                  .map((intern) => (
+                    <PerformanceScoreCard
+                      key={intern.principal.toString()}
+                      internId={intern.principal}
+                      internName={intern.name}
+                    />
+                  ))}
+              </div>
+            )}
+          </TabsContent>
           <TabsContent value="rejected" className="m-0">
             <InternTable interns={rejectedInterns} {...tableProps} />
           </TabsContent>
           <TabsContent value="all" className="m-0">
-            <InternTable interns={allInterns} {...tableProps} />
+            <InternTable
+              interns={allInterns}
+              {...tableProps}
+              showScoring={true}
+            />
           </TabsContent>
         </div>
       </Tabs>

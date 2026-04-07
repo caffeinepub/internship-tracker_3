@@ -13,28 +13,93 @@ import type { Principal } from '@icp-sdk/core/principal';
 export type Type = { 'active' : null } |
   { 'completed' : null } |
   { 'planning' : null };
-export type Type__1 = { 'pending' : null } |
-  { 'completed' : null } |
-  { 'inProgress' : null };
-export type Type__2 = { 'active' : null } |
-  { 'pending' : null } |
-  { 'rejected' : null };
-export type Type__3 = { 'admin' : null } |
-  { 'user' : null } |
-  { 'guest' : null };
-export type Type__4 = { 'projectAssigned' : null } |
+export interface Type__1 {
+  'id' : string,
+  'title' : string,
+  'isCompleted' : boolean,
+  'dueDate' : [] | [bigint],
+}
+export interface Type__10 {
+  'id' : string,
+  'completedAt' : [] | [bigint],
+  'title' : string,
+  'isCompleted' : boolean,
+}
+export type Type__11 = { 'projectAssigned' : null } |
   { 'messageReceived' : null } |
+  { 'announcement' : null } |
   { 'newApprovalRequest' : null } |
-  { 'milestoneUpdate' : null };
-export interface Type__5 {
+  { 'performanceScored' : null } |
+  { 'milestoneUpdate' : null } |
+  { 'commitPushed' : null };
+export interface Type__12 {
+  'content' : string,
+  'fileName' : string,
+  'timestamp' : bigint,
+  'commitId' : string,
+}
+export interface Type__13 {
+  'id' : string,
+  'ownerId' : Principal,
+  'name' : string,
+  'projectId' : string,
+  'isLocked' : boolean,
+}
+export interface Type__14 {
   'totalActivities' : bigint,
   'totalHours' : bigint,
-  'recentActivities' : Array<View__3>,
+  'recentActivities' : Array<View__4>,
   'completedMilestones' : bigint,
   'hoursByProject' : Array<[bigint, bigint]>,
   'totalMilestones' : bigint,
   'projectCount' : bigint,
   'activeInternCount' : bigint,
+}
+export interface Type__15 {
+  'id' : string,
+  'title' : string,
+  'content' : string,
+  'authorId' : Principal,
+  'isActive' : boolean,
+  'timestamp' : bigint,
+}
+export type Type__2 = { 'pending' : null } |
+  { 'completed' : null } |
+  { 'inProgress' : null };
+export type Type__3 = { 'file' : null } |
+  { 'systemMsg' : null } |
+  { 'text' : null } |
+  { 'image' : null };
+export type Type__4 = { 'active' : null } |
+  { 'pending' : null } |
+  { 'rejected' : null };
+export type Type__5 = { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
+export interface Type__6 {
+  'content' : string,
+  'name' : string,
+  'path' : string,
+}
+export interface Type__7 {
+  'id' : string,
+  'files' : Array<Type__6>,
+  'authorId' : Principal,
+  'parentCommitId' : [] | [string],
+  'message' : string,
+  'timestamp' : bigint,
+  'branchId' : string,
+}
+export type Type__8 = { 'admin' : null } |
+  { 'user' : null } |
+  { 'guest' : null };
+export interface Type__9 {
+  'internId' : Principal,
+  'feedback' : string,
+  'score' : bigint,
+  'timestamp' : bigint,
+  'category' : string,
+  'adminId' : Principal,
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -45,26 +110,45 @@ export interface View {
   'title' : string,
   'assignedInterns' : Array<Principal>,
   'endDate' : string,
+  'tags' : Array<string>,
   'description' : string,
+  'isPinned' : boolean,
+  'subtasks' : Array<Type__1>,
   'startDate' : string,
 }
 export interface View__1 {
   'id' : bigint,
   'content' : string,
   'recipient' : Principal,
+  'fileName' : [] | [string],
+  'fileSize' : [] | [bigint],
   'isRead' : boolean,
   'sender' : Principal,
+  'messageType' : Type__3,
   'timestamp' : bigint,
+  'fileUrl' : [] | [string],
 }
 export interface View__2 {
   'bio' : string,
   'principal' : Principal,
   'name' : string,
+  'photoUrl' : [] | [string],
   'email' : string,
-  'registrationStatus' : Type__2,
+  'links' : Array<string>,
+  'registrationStatus' : Type__4,
   'skills' : Array<string>,
 }
 export interface View__3 {
+  'id' : bigint,
+  'internPrincipal' : Principal,
+  'status' : Type__5,
+  'createdAt' : bigint,
+  'adminNote' : [] | [string],
+  'projectId' : bigint,
+  'requestedEndDate' : string,
+  'reason' : string,
+}
+export interface View__4 {
   'id' : bigint,
   'internPrincipal' : Principal,
   'title' : string,
@@ -74,19 +158,19 @@ export interface View__3 {
   'description' : string,
   'projectId' : bigint,
 }
-export interface View__4 {
+export interface View__5 {
   'id' : bigint,
-  'notificationType' : Type__4,
+  'notificationType' : Type__11,
   'isRead' : boolean,
   'message' : string,
   'timestamp' : bigint,
   'relatedId' : bigint,
   'recipientPrincipal' : Principal,
 }
-export interface View__5 {
+export interface View__6 {
   'id' : bigint,
   'internPrincipal' : Principal,
-  'status' : Type__1,
+  'status' : Type__2,
   'title' : string,
   'createdAt' : bigint,
   'dueDate' : string,
@@ -94,13 +178,22 @@ export interface View__5 {
   'projectId' : bigint,
 }
 export interface _SERVICE {
-  '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  '_initializeAccessControl' : ActorMethod<[], undefined>,
+  'addPerformanceScore' : ActorMethod<
+    [Principal, bigint, string, string],
+    undefined
+  >,
+  'addProjectTag' : ActorMethod<[bigint, string], undefined>,
+  'addSubtask' : ActorMethod<[bigint, string, [] | [bigint]], undefined>,
   'approveInternRegistration' : ActorMethod<[Principal], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'assignInternToProject' : ActorMethod<
     [{ 'internPrincipal' : Principal, 'projectId' : bigint }],
     undefined
   >,
+  'completeOnboardingItem' : ActorMethod<[string], undefined>,
+  'createAnnouncement' : ActorMethod<[string, string], Type__15>,
+  'createBranch' : ActorMethod<[string, string, Principal], Type__13>,
   'createMilestone' : ActorMethod<
     [
       {
@@ -110,7 +203,7 @@ export interface _SERVICE {
         'projectId' : bigint,
       },
     ],
-    View__5
+    View__6
   >,
   'createProject' : ActorMethod<
     [
@@ -123,58 +216,96 @@ export interface _SERVICE {
     ],
     View
   >,
-  'getActivitiesForIntern' : ActorMethod<[Principal], Array<View__3>>,
-  'getActivitiesForProject' : ActorMethod<[bigint], Array<View__3>>,
-  'getAllActivities' : ActorMethod<[], Array<View__3>>,
+  'deactivateAnnouncement' : ActorMethod<[string], undefined>,
+  'getActiveAnnouncements' : ActorMethod<[], Array<Type__15>>,
+  'getActivitiesForIntern' : ActorMethod<[Principal], Array<View__4>>,
+  'getActivitiesForProject' : ActorMethod<[bigint], Array<View__4>>,
+  'getAllActivities' : ActorMethod<[], Array<View__4>>,
+  'getAllAnnouncements' : ActorMethod<[], Array<Type__15>>,
+  'getAllBranches' : ActorMethod<[], Array<Type__13>>,
+  'getAllCommits' : ActorMethod<[], Array<Type__7>>,
+  'getAllExtensionRequests' : ActorMethod<[], Array<View__3>>,
   'getAllInterns' : ActorMethod<[], Array<View__2>>,
-  'getAllMilestones' : ActorMethod<[], Array<View__5>>,
+  'getAllMilestones' : ActorMethod<[], Array<View__6>>,
   'getAllPendingInterns' : ActorMethod<[], Array<View__2>>,
   'getAllProjects' : ActorMethod<[], Array<View>>,
   'getAllRejectedInterns' : ActorMethod<[], Array<View__2>>,
   'getAllUsers' : ActorMethod<[], Array<View__2>>,
-  'getAnalyticsSummary' : ActorMethod<[], Type__5>,
+  'getAnalyticsSummary' : ActorMethod<[], Type__14>,
+  'getAverageScore' : ActorMethod<[Principal], [] | [number]>,
+  'getBranchForIntern' : ActorMethod<[Principal], [] | [Type__13]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [View__2]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCommitById' : ActorMethod<[string], [] | [Type__7]>,
+  'getCommitsForBranch' : ActorMethod<[string], Array<Type__7>>,
   'getConversation' : ActorMethod<[Principal], Array<View__1>>,
+  'getConversationMessages' : ActorMethod<
+    [Principal, bigint, [] | [bigint]],
+    Array<View__1>
+  >,
+  'getExtensionRequestsForIntern' : ActorMethod<[Principal], Array<View__3>>,
+  'getFileHistory' : ActorMethod<[string, string], Array<Type__12>>,
+  'getLatestFiles' : ActorMethod<[string], Array<Type__6>>,
   'getMessagesForCaller' : ActorMethod<[], Array<View__1>>,
-  'getMilestonesForIntern' : ActorMethod<[Principal], Array<View__5>>,
-  'getMilestonesForProject' : ActorMethod<[bigint], Array<View__5>>,
-  'getNotificationsForCaller' : ActorMethod<[], Array<View__4>>,
+  'getMilestonesForIntern' : ActorMethod<[Principal], Array<View__6>>,
+  'getMilestonesForProject' : ActorMethod<[bigint], Array<View__6>>,
+  'getNotificationsForCaller' : ActorMethod<[], Array<View__5>>,
+  'getOnboardingChecklist' : ActorMethod<[Principal], Array<Type__10>>,
+  'getPinnedProjects' : ActorMethod<[], Array<View>>,
   'getProject' : ActorMethod<[bigint], [] | [View]>,
   'getProjectsByStatus' : ActorMethod<[Type], Array<View>>,
   'getProjectsForIntern' : ActorMethod<[Principal], Array<View>>,
+  'getScoresForIntern' : ActorMethod<[Principal], Array<Type__9>>,
   'getUnreadCount' : ActorMethod<[], bigint>,
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [View__2]>,
-  'getUserRole' : ActorMethod<[Principal], Type__3>,
+  'getUserRole' : ActorMethod<[Principal], Type__8>,
+  'initializeOnboarding' : ActorMethod<[], undefined>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'logActivity' : ActorMethod<
     [bigint, string, string, string, bigint],
-    View__3
+    View__4
   >,
   'markAllNotificationsRead' : ActorMethod<[], undefined>,
   'markMessageRead' : ActorMethod<[bigint], undefined>,
   'markNotificationRead' : ActorMethod<[bigint], undefined>,
   'promoteToAdmin' : ActorMethod<[Principal], undefined>,
+  'pushCommit' : ActorMethod<[string, string, Array<Type__6>], Type__7>,
   'registerIntern' : ActorMethod<
     [{ 'bio' : string, 'name' : string, 'email' : string }],
     undefined
   >,
   'rejectInternRegistration' : ActorMethod<[Principal], undefined>,
   'removeProject' : ActorMethod<[bigint], undefined>,
+  'requestProjectExtension' : ActorMethod<[bigint, string, string], View__3>,
+  'respondToExtensionRequest' : ActorMethod<
+    [bigint, boolean, [] | [string]],
+    undefined
+  >,
   'saveCallerUserProfile' : ActorMethod<[View__2], undefined>,
+  'searchInterns' : ActorMethod<[string], Array<View__2>>,
+  'searchProjects' : ActorMethod<[string], Array<View>>,
+  'sendFileMessage' : ActorMethod<
+    [Principal, string, string, bigint, { 'file' : null } | { 'image' : null }],
+    View__1
+  >,
   'sendMessage' : ActorMethod<[Principal, string], View__1>,
+  'toggleBranchLock' : ActorMethod<[string], undefined>,
+  'toggleProjectPin' : ActorMethod<[bigint], undefined>,
+  'toggleSubtask' : ActorMethod<[bigint, string], undefined>,
   'unassignInternFromProject' : ActorMethod<
     [{ 'internPrincipal' : Principal, 'projectId' : bigint }],
     undefined
   >,
-  'updateMilestoneStatus' : ActorMethod<[bigint, Type__1], undefined>,
+  'updateMilestoneStatus' : ActorMethod<[bigint, Type__2], undefined>,
   'updateProfile' : ActorMethod<
     [
       {
         'bio' : string,
         'name' : string,
+        'photoUrl' : [] | [string],
         'email' : string,
+        'links' : Array<string>,
         'skills' : Array<string>,
       },
     ],

@@ -1,0 +1,333 @@
+type View__6 = 
+ record {
+   createdAt: int;
+   description: text;
+   dueDate: text;
+   id: nat;
+   internPrincipal: principal;
+   projectId: nat;
+   status: Type__2;
+   title: text;
+ };
+type View__5 = 
+ record {
+   id: nat;
+   isRead: bool;
+   message: text;
+   notificationType: Type__11;
+   recipientPrincipal: principal;
+   relatedId: nat;
+   timestamp: int;
+ };
+type View__4 = 
+ record {
+   createdAt: int;
+   date: text;
+   description: text;
+   hours: nat;
+   id: nat;
+   internPrincipal: principal;
+   projectId: nat;
+   title: text;
+ };
+type View__3 = 
+ record {
+   adminNote: opt text;
+   createdAt: int;
+   id: nat;
+   internPrincipal: principal;
+   projectId: nat;
+   reason: text;
+   requestedEndDate: text;
+   status: Type__5;
+ };
+type View__2 = 
+ record {
+   bio: text;
+   email: text;
+   links: vec text;
+   name: text;
+   photoUrl: opt text;
+   "principal": principal;
+   registrationStatus: Type__4;
+   skills: vec text;
+ };
+type View__1 = 
+ record {
+   content: text;
+   fileName: opt text;
+   fileSize: opt nat;
+   fileUrl: opt text;
+   id: nat;
+   isRead: bool;
+   messageType: Type__3;
+   recipient: principal;
+   sender: principal;
+   timestamp: int;
+ };
+type View = 
+ record {
+   assignedInterns: vec principal;
+   description: text;
+   endDate: text;
+   id: nat;
+   isPinned: bool;
+   startDate: text;
+   status: Type;
+   subtasks: vec Type__1;
+   tags: vec text;
+   title: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type Type__9 = 
+ record {
+   adminId: principal;
+   category: text;
+   feedback: text;
+   internId: principal;
+   score: nat;
+   timestamp: int;
+ };
+type Type__8 = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type Type__7 = 
+ record {
+   authorId: principal;
+   branchId: text;
+   files: vec Type__6;
+   id: text;
+   message: text;
+   parentCommitId: opt text;
+   timestamp: int;
+ };
+type Type__6 = 
+ record {
+   content: text;
+   name: text;
+   path: text;
+ };
+type Type__5 = 
+ variant {
+   approved;
+   pending;
+   rejected;
+ };
+type Type__4 = 
+ variant {
+   active;
+   pending;
+   rejected;
+ };
+type Type__3 = 
+ variant {
+   file;
+   image;
+   systemMsg;
+   "text";
+ };
+type Type__2 = 
+ variant {
+   completed;
+   inProgress;
+   pending;
+ };
+type Type__15 = 
+ record {
+   authorId: principal;
+   content: text;
+   id: text;
+   isActive: bool;
+   timestamp: int;
+   title: text;
+ };
+type Type__14 = 
+ record {
+   activeInternCount: nat;
+   completedMilestones: nat;
+   hoursByProject: vec record {
+                         nat;
+                         nat;
+                       };
+   projectCount: nat;
+   recentActivities: vec View__4;
+   totalActivities: nat;
+   totalHours: nat;
+   totalMilestones: nat;
+ };
+type Type__13 = 
+ record {
+   id: text;
+   isLocked: bool;
+   name: text;
+   ownerId: principal;
+   projectId: text;
+ };
+type Type__12 = 
+ record {
+   commitId: text;
+   content: text;
+   fileName: text;
+   timestamp: int;
+ };
+type Type__11 = 
+ variant {
+   announcement;
+   commitPushed;
+   messageReceived;
+   milestoneUpdate;
+   newApprovalRequest;
+   performanceScored;
+   projectAssigned;
+ };
+type Type__10 = 
+ record {
+   completedAt: opt int;
+   id: text;
+   isCompleted: bool;
+   title: text;
+ };
+type Type__1 = 
+ record {
+   dueDate: opt int;
+   id: text;
+   isCompleted: bool;
+   title: text;
+ };
+type Type = 
+ variant {
+   active;
+   completed;
+   planning;
+ };
+service : {
+  _initializeAccessControl: () -> ();
+  addPerformanceScore: (internId: principal, score: nat, feedback: text,
+   category: text) -> ();
+  addProjectTag: (projectId: nat, tag: text) -> ();
+  addSubtask: (projectId: nat, title: text, dueDate: opt int) -> ();
+  approveInternRegistration: (userPrincipal: principal) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  assignInternToProject:
+   (record {
+      internPrincipal: principal;
+      projectId: nat;
+    }) -> ();
+  completeOnboardingItem: (itemId: text) -> ();
+  createAnnouncement: (title: text, content: text) -> (Type__15);
+  createBranch: (name: text, projectId: text, ownerId: principal) ->
+   (Type__13);
+  createMilestone:
+   (record {
+      description: text;
+      dueDate: text;
+      projectId: nat;
+      title: text;
+    }) -> (View__6);
+  createProject:
+   (record {
+      description: text;
+      endDate: text;
+      startDate: text;
+      title: text;
+    }) -> (View);
+  deactivateAnnouncement: (id: text) -> ();
+  getActiveAnnouncements: () -> (vec Type__15) query;
+  getActivitiesForIntern: (intern: principal) -> (vec View__4) query;
+  getActivitiesForProject: (projectId: nat) -> (vec View__4) query;
+  getAllActivities: () -> (vec View__4) query;
+  getAllAnnouncements: () -> (vec Type__15) query;
+  getAllBranches: () -> (vec Type__13) query;
+  getAllCommits: () -> (vec Type__7) query;
+  getAllExtensionRequests: () -> (vec View__3) query;
+  getAllInterns: () -> (vec View__2) query;
+  getAllMilestones: () -> (vec View__6) query;
+  getAllPendingInterns: () -> (vec View__2) query;
+  getAllProjects: () -> (vec View) query;
+  getAllRejectedInterns: () -> (vec View__2) query;
+  getAllUsers: () -> (vec View__2) query;
+  getAnalyticsSummary: () -> (Type__14) query;
+  getAverageScore: (internId: principal) -> (opt float64) query;
+  getBranchForIntern: (internId: principal) -> (opt Type__13) query;
+  getCallerUserProfile: () -> (opt View__2) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCommitById: (commitId: text) -> (opt Type__7) query;
+  getCommitsForBranch: (branchId: text) -> (vec Type__7) query;
+  getConversation: (otherUser: principal) -> (vec View__1) query;
+  getConversationMessages: (withUser: principal, limit: nat, before:
+   opt int) -> (vec View__1) query;
+  getExtensionRequestsForIntern: (intern: principal) -> (vec View__3) query;
+  getFileHistory: (branchId: text, fileName: text) -> (vec Type__12) query;
+  getLatestFiles: (branchId: text) -> (vec Type__6) query;
+  getMessagesForCaller: () -> (vec View__1) query;
+  getMilestonesForIntern: (intern: principal) -> (vec View__6) query;
+  getMilestonesForProject: (projectId: nat) -> (vec View__6) query;
+  getNotificationsForCaller: () -> (vec View__5) query;
+  getOnboardingChecklist: (internId: principal) -> (vec Type__10) query;
+  getPinnedProjects: () -> (vec View) query;
+  getProject: (id: nat) -> (opt View) query;
+  getProjectsByStatus: (status: Type) -> (vec View) query;
+  getProjectsForIntern: (intern: principal) -> (vec View) query;
+  getScoresForIntern: (internId: principal) -> (vec Type__9) query;
+  getUnreadCount: () -> (nat) query;
+  getUnreadNotificationCount: () -> (nat) query;
+  getUserProfile: (user: principal) -> (opt View__2) query;
+  getUserRole: (user: principal) -> (Type__8) query;
+  initializeOnboarding: () -> ();
+  isCallerAdmin: () -> (bool) query;
+  logActivity: (projectId: nat, title: text, description: text, date: 
+   text, hours: nat) -> (View__4);
+  markAllNotificationsRead: () -> ();
+  markMessageRead: (messageId: nat) -> ();
+  markNotificationRead: (notificationId: nat) -> ();
+  promoteToAdmin: (user: principal) -> ();
+  pushCommit: (branchId: text, message: text, files: vec Type__6) ->
+   (Type__7);
+  registerIntern: (record {
+                     bio: text;
+                     email: text;
+                     name: text;
+                   }) -> ();
+  rejectInternRegistration: (userPrincipal: principal) -> ();
+  removeProject: (id: nat) -> ();
+  requestProjectExtension: (projectId: nat, reason: text, requestedEndDate:
+   text) -> (View__3);
+  respondToExtensionRequest: (requestId: nat, approved: bool, adminNote:
+   opt text) -> ();
+  saveCallerUserProfile: (profile: View__2) -> ();
+  searchInterns: (searchTerm: text) -> (vec View__2) query;
+  searchProjects: (searchTerm: text) -> (vec View) query;
+  sendFileMessage: (recipient: principal, fileUrl: text, fileName: text,
+   fileSize: nat, messageType: variant {
+                                 file;
+                                 image;
+                               }) -> (View__1);
+  sendMessage: (recipient: principal, content: text) -> (View__1);
+  toggleBranchLock: (branchId: text) -> ();
+  toggleProjectPin: (projectId: nat) -> ();
+  toggleSubtask: (projectId: nat, subtaskId: text) -> ();
+  unassignInternFromProject:
+   (record {
+      internPrincipal: principal;
+      projectId: nat;
+    }) -> ();
+  updateMilestoneStatus: (milestoneId: nat, status: Type__2) -> ();
+  updateProfile:
+   (record {
+      bio: text;
+      email: text;
+      links: vec text;
+      name: text;
+      photoUrl: opt text;
+      skills: vec text;
+    }) -> ();
+  updateProject: (project: View) -> ();
+}

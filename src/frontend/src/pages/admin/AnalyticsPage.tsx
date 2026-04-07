@@ -24,26 +24,14 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import type {
-  View__3 as ActivityLogView,
+  View__4 as ActivityLogView,
   View as ProjectView,
+  Type__14,
 } from "../../backend";
 import type { backendInterface } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 
-interface AnalyticsSummary {
-  totalHours: bigint;
-  totalActivities: bigint;
-  totalMilestones: bigint;
-  completedMilestones: bigint;
-  activeInternCount: bigint;
-  projectCount: bigint;
-  hoursByProject: Array<[bigint, bigint]>;
-  recentActivities: ActivityLogView[];
-}
-
-interface ExtendedActor extends backendInterface {
-  getAnalyticsSummary(): Promise<AnalyticsSummary>;
-}
+type AnalyticsSummary = Type__14;
 
 function StatCard({
   icon: Icon,
@@ -98,19 +86,18 @@ const CHART_COLORS = [
 
 export default function AnalyticsPage() {
   const { actor } = useActor();
-  const ext = actor as ExtendedActor | null;
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [projects, setProjects] = useState<ProjectView[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!ext) return;
+    if (!actor) return;
     (async () => {
       setLoading(true);
       try {
         const [summaryData, projectsData] = await Promise.all([
-          ext.getAnalyticsSummary(),
-          ext.getAllProjects(),
+          actor.getAnalyticsSummary(),
+          actor.getAllProjects(),
         ]);
         setSummary(summaryData);
         setProjects(projectsData);
@@ -120,7 +107,7 @@ export default function AnalyticsPage() {
         setLoading(false);
       }
     })();
-  }, [ext]);
+  }, [actor]);
 
   const projectMap = new Map<string, string>(
     projects.map((p) => [String(p.id), p.title]),

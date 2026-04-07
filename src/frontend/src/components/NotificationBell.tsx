@@ -18,9 +18,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View__4, backendInterface } from "../backend";
+import type { View__5, backendInterface } from "../backend";
 
-type NotificationView = View__4;
+type NotificationView = View__5;
 
 interface NotificationBellProps {
   actor: backendInterface | null;

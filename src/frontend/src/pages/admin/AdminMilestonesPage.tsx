@@ -21,7 +21,7 @@ import { Flag, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type {
-  View__5 as MilestoneView,
+  View__6 as MilestoneView,
   View as ProjectView,
 } from "../../backend";
 import { useActor } from "../../hooks/useActor";
