@@ -5,8 +5,12 @@ import { cn } from "@/lib/utils";
 import {
   Activity,
   BarChart2,
+  CalendarClock,
+  CalendarDays,
+  FileText,
   Flag,
   FolderKanban,
+  GanttChartSquare,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -26,8 +30,12 @@ import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminMilestonesPage from "../pages/admin/AdminMilestonesPage";
 import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
 import AnalyticsPage from "../pages/admin/AnalyticsPage";
+import CalendarPage from "../pages/admin/CalendarPage";
+import ExtensionRequestsPage from "../pages/admin/ExtensionRequestsPage";
 import InternsPage from "../pages/admin/InternsPage";
 import ProjectsPage from "../pages/admin/ProjectsPage";
+import ReportsPage from "../pages/admin/ReportsPage";
+import TimelinePage from "../pages/admin/TimelinePage";
 
 type AdminPage =
   | "dashboard"
@@ -37,7 +45,11 @@ type AdminPage =
   | "messages"
   | "settings"
   | "analytics"
-  | "milestones";
+  | "milestones"
+  | "reports"
+  | "extensions"
+  | "calendar"
+  | "timeline";
 
 const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
   [
@@ -47,6 +59,10 @@ const navItems: { page: AdminPage; label: string; icon: React.ElementType }[] =
     { page: "activity", label: "Activity", icon: Activity },
     { page: "analytics", label: "Analytics", icon: BarChart2 },
     { page: "milestones", label: "Milestones", icon: Flag },
+    { page: "reports", label: "Reports", icon: FileText },
+    { page: "extensions", label: "Extensions", icon: CalendarClock },
+    { page: "calendar", label: "Calendar", icon: CalendarDays },
+    { page: "timeline", label: "Timeline", icon: GanttChartSquare },
     { page: "messages", label: "Messages", icon: MessageSquare },
     { page: "settings", label: "Settings", icon: Settings },
   ];
@@ -182,6 +198,14 @@ export default function AdminShell() {
         return <AnalyticsPage />;
       case "milestones":
         return <AdminMilestonesPage />;
+      case "reports":
+        return <ReportsPage />;
+      case "extensions":
+        return <ExtensionRequestsPage />;
+      case "calendar":
+        return <CalendarPage />;
+      case "timeline":
+        return <TimelinePage />;
       case "messages":
         return <MessagesPage />;
       case "settings":

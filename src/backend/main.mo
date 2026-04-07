@@ -189,6 +189,31 @@ actor {
       recentActivities : [ActivityLog.View];
     };
   };
+  module ExtensionStatus {
+    public type Type = { #pending; #approved; #rejected };
+  };
+  module ExtensionRequest {
+    public type Type = {
+      id : Nat;
+      projectId : Nat;
+      internPrincipal : Principal;
+      reason : Text;
+      requestedEndDate : Text;
+      status : ExtensionStatus.Type;
+      adminNote : ?Text;
+      createdAt : Int;
+    };
+    public type View = {
+      id : Nat;
+      projectId : Nat;
+      internPrincipal : Principal;
+      reason : Text;
+      requestedEndDate : Text;
+      status : ExtensionStatus.Type;
+      adminNote : ?Text;
+      createdAt : Int;
+    };
+  };
 
   // --- Persistent State ---
   let accessControlState = AccessControl.initState();
@@ -200,6 +225,7 @@ actor {
   var nextMessageId = 1;
   var nextMilestoneId = 1;
   var nextNotificationId = 1;
+  var nextExtensionRequestId = 1;
   var lastActivityTime : ?Int = null;
 
   let userProfiles = Map.empty<Principal, UserProfile.Type>();
@@ -208,6 +234,7 @@ actor {
   let messages = Map.empty<Nat, Message.Type>();
   let milestones = Map.empty<Nat, Milestone.Type>();
   let notifications = Map.empty<Nat, Notification.Type>();
+  let extensionRequests = Map.empty<Nat, ExtensionRequest.Type>();
 
   // --- Notification Helper ---
   func createNotificationInternal(recipient : Principal, notificationType : NotificationType.Type, message : Text, relatedId : Nat) {
@@ -536,6 +563,97 @@ actor {
       Runtime.trap("Unauthorized: Only admins can view all milestones");
     };
     milestones.values().toArray();
+  };
+
+  // --- Extension Request Functions ---
+  public shared ({ caller }) func requestProjectExtension(projectId : Nat, reason : Text, requestedEndDate : Text) : async ExtensionRequest.View {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only interns can request extensions");
+    };
+    let project = getProjectById(projectId);
+    if (not project.assignedInterns.contains(caller)) {
+      Runtime.trap("Unauthorized: You are not assigned to this project");
+    };
+    // Check for existing pending request
+    for (req in extensionRequests.values()) {
+      if (req.projectId == projectId and req.internPrincipal == caller and req.status == #pending) {
+        Runtime.trap("A pending extension request already exists for this project");
+      };
+    };
+    let newRequest : ExtensionRequest.Type = {
+      id = nextExtensionRequestId;
+      projectId;
+      internPrincipal = caller;
+      reason;
+      requestedEndDate;
+      status = #pending;
+      adminNote = null;
+      createdAt = Time.now();
+    };
+    extensionRequests.add(nextExtensionRequestId, newRequest);
+    nextExtensionRequestId += 1;
+    // Notify all admins
+    for ((principal, _) in userProfiles.entries()) {
+      if (AccessControl.isAdmin(accessControlState, principal)) {
+        createNotificationInternal(
+          principal,
+          #milestoneUpdate,
+          "Extension request submitted for project: " # project.title,
+          newRequest.id
+        );
+      };
+    };
+    newRequest;
+  };
+
+  public query ({ caller }) func getExtensionRequestsForIntern(intern : Principal) : async [ExtensionRequest.View] {
+    if (caller != intern and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own extension requests");
+    };
+    let filteredResults = List.empty<ExtensionRequest.Type>();
+    for (req in extensionRequests.values()) {
+      if (req.internPrincipal == intern) {
+        filteredResults.add(req);
+      };
+    };
+    filteredResults.toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+  };
+
+  public query ({ caller }) func getAllExtensionRequests() : async [ExtensionRequest.View] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can view all extension requests");
+    };
+    extensionRequests.values().toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+  };
+
+  public shared ({ caller }) func respondToExtensionRequest(requestId : Nat, approved : Bool, adminNote : ?Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can respond to extension requests");
+    };
+    switch (extensionRequests.get(requestId)) {
+      case (null) { Runtime.trap("Extension request not found") };
+      case (?req) {
+        if (req.status != #pending) {
+          Runtime.trap("Extension request already processed");
+        };
+        let newStatus = if (approved) { #approved } else { #rejected };
+        extensionRequests.add(requestId, { req with status = newStatus; adminNote });
+        // If approved, update project end date
+        if (approved) {
+          let project = getProjectById(req.projectId);
+          updateProjectInternal({ project with endDate = req.requestedEndDate });
+        };
+        // Notify intern
+        let statusText = if (approved) { "approved" } else { "rejected" };
+        let project = getProjectById(req.projectId);
+        createNotificationInternal(
+          req.internPrincipal,
+          #projectAssigned,
+          "Your extension request for project \"" # project.title # "\" was " # statusText,
+          requestId
+        );
+      };
+    };
   };
 
   // --- Notification Functions ---

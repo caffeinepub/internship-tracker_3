@@ -18,24 +18,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { backendInterface } from "../backend";
+import type { View__4, backendInterface } from "../backend";
 
-interface NotificationView {
-  id: bigint;
-  recipientPrincipal: Principal;
-  notificationType: string;
-  message: string;
-  relatedId: bigint;
-  isRead: boolean;
-  timestamp: bigint;
-}
-
-interface ExtendedActor extends backendInterface {
-  getUnreadNotificationCount(): Promise<bigint>;
-  getNotificationsForCaller(): Promise<NotificationView[]>;
-  markNotificationRead(notificationId: bigint): Promise<void>;
-  markAllNotificationsRead(): Promise<void>;
-}
+type NotificationView = View__4;
 
 interface NotificationBellProps {
   actor: backendInterface | null;
@@ -72,7 +57,6 @@ function getRelativeTime(timestampNs: bigint): string {
 }
 
 export default function NotificationBell({ actor }: NotificationBellProps) {
-  const ext = actor as ExtendedActor | null;
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationView[]>([]);
@@ -80,14 +64,14 @@ export default function NotificationBell({ actor }: NotificationBellProps) {
   const [markingAll, setMarkingAll] = useState(false);
 
   const fetchUnreadCount = useCallback(async () => {
-    if (!ext) return;
+    if (!actor) return;
     try {
-      const count = await ext.getUnreadNotificationCount();
+      const count = await actor.getUnreadNotificationCount();
       setUnreadCount(Number(count));
     } catch {
       // silent
     }
-  }, [ext]);
+  }, [actor]);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -96,10 +80,10 @@ export default function NotificationBell({ actor }: NotificationBellProps) {
   }, [fetchUnreadCount]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!ext) return;
+    if (!actor) return;
     setLoadingNotifs(true);
     try {
-      const data = await ext.getNotificationsForCaller();
+      const data = await actor.getNotificationsForCaller();
       const sorted = [...data].sort(
         (a, b) => Number(b.timestamp) - Number(a.timestamp),
       );
@@ -109,7 +93,7 @@ export default function NotificationBell({ actor }: NotificationBellProps) {
     } finally {
       setLoadingNotifs(false);
     }
-  }, [ext]);
+  }, [actor]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -119,9 +103,9 @@ export default function NotificationBell({ actor }: NotificationBellProps) {
   };
 
   const handleMarkRead = async (notifId: bigint) => {
-    if (!ext) return;
+    if (!actor) return;
     try {
-      await ext.markNotificationRead(notifId);
+      await actor.markNotificationRead(notifId);
       setNotifications((prev) =>
         prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)),
       );
@@ -132,10 +116,10 @@ export default function NotificationBell({ actor }: NotificationBellProps) {
   };
 
   const handleMarkAllRead = async () => {
-    if (!ext) return;
+    if (!actor) return;
     setMarkingAll(true);
     try {
-      await ext.markAllNotificationsRead();
+      await actor.markAllNotificationsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch {

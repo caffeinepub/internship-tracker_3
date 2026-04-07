@@ -4,6 +4,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   Activity,
+  CheckSquare,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -20,12 +21,14 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import MessagesPage from "../pages/MessagesPage";
 import ActivityLogPage from "../pages/intern/ActivityLogPage";
 import InternDashboard from "../pages/intern/InternDashboard";
+import InternMilestonesPage from "../pages/intern/InternMilestonesPage";
 import InternProfilePage from "../pages/intern/InternProfilePage";
 import MyProjectPage from "../pages/intern/MyProjectPage";
 
 type InternPage =
   | "dashboard"
   | "projects"
+  | "milestones"
   | "activity"
   | "messages"
   | "profile";
@@ -34,6 +37,7 @@ const navItems: { page: InternPage; label: string; icon: React.ElementType }[] =
   [
     { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { page: "projects", label: "My Projects", icon: FolderKanban },
+    { page: "milestones", label: "Milestones", icon: CheckSquare },
     { page: "activity", label: "Activity Log", icon: Activity },
     { page: "messages", label: "Messages", icon: MessageSquare },
     { page: "profile", label: "Profile", icon: UserCircle },
@@ -160,6 +164,8 @@ export default function InternShell() {
         return <InternDashboard />;
       case "projects":
         return <MyProjectPage />;
+      case "milestones":
+        return <InternMilestonesPage />;
       case "activity":
         return <ActivityLogPage />;
       case "messages":

@@ -13,6 +13,21 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const Type__1 = IDL.Variant({
+  'pending' : IDL.Null,
+  'completed' : IDL.Null,
+  'inProgress' : IDL.Null,
+});
+export const View__5 = IDL.Record({
+  'id' : IDL.Nat,
+  'internPrincipal' : IDL.Principal,
+  'status' : Type__1,
+  'title' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'dueDate' : IDL.Text,
+  'description' : IDL.Text,
+  'projectId' : IDL.Nat,
+});
 export const Type = IDL.Variant({
   'active' : IDL.Null,
   'completed' : IDL.Null,
@@ -37,7 +52,7 @@ export const View__3 = IDL.Record({
   'description' : IDL.Text,
   'projectId' : IDL.Nat,
 });
-export const Type__1 = IDL.Variant({
+export const Type__2 = IDL.Variant({
   'active' : IDL.Null,
   'pending' : IDL.Null,
   'rejected' : IDL.Null,
@@ -47,8 +62,18 @@ export const View__2 = IDL.Record({
   'principal' : IDL.Principal,
   'name' : IDL.Text,
   'email' : IDL.Text,
-  'registrationStatus' : Type__1,
+  'registrationStatus' : Type__2,
   'skills' : IDL.Vec(IDL.Text),
+});
+export const Type__5 = IDL.Record({
+  'totalActivities' : IDL.Nat,
+  'totalHours' : IDL.Nat,
+  'recentActivities' : IDL.Vec(View__3),
+  'completedMilestones' : IDL.Nat,
+  'hoursByProject' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Nat)),
+  'totalMilestones' : IDL.Nat,
+  'projectCount' : IDL.Nat,
+  'activeInternCount' : IDL.Nat,
 });
 export const View__1 = IDL.Record({
   'id' : IDL.Nat,
@@ -58,7 +83,22 @@ export const View__1 = IDL.Record({
   'sender' : IDL.Principal,
   'timestamp' : IDL.Int,
 });
-export const Type__2 = IDL.Variant({
+export const Type__4 = IDL.Variant({
+  'projectAssigned' : IDL.Null,
+  'messageReceived' : IDL.Null,
+  'newApprovalRequest' : IDL.Null,
+  'milestoneUpdate' : IDL.Null,
+});
+export const View__4 = IDL.Record({
+  'id' : IDL.Nat,
+  'notificationType' : Type__4,
+  'isRead' : IDL.Bool,
+  'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'relatedId' : IDL.Nat,
+  'recipientPrincipal' : IDL.Principal,
+});
+export const Type__3 = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
@@ -76,6 +116,18 @@ export const idlService = IDL.Service({
         }),
       ],
       [],
+      [],
+    ),
+  'createMilestone' : IDL.Func(
+      [
+        IDL.Record({
+          'title' : IDL.Text,
+          'dueDate' : IDL.Text,
+          'description' : IDL.Text,
+          'projectId' : IDL.Nat,
+        }),
+      ],
+      [View__5],
       [],
     ),
   'createProject' : IDL.Func(
@@ -102,14 +154,27 @@ export const idlService = IDL.Service({
     ),
   'getAllActivities' : IDL.Func([], [IDL.Vec(View__3)], ['query']),
   'getAllInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+  'getAllMilestones' : IDL.Func([], [IDL.Vec(View__5)], ['query']),
   'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
   'getAllProjects' : IDL.Func([], [IDL.Vec(View)], ['query']),
   'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
   'getAllUsers' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+  'getAnalyticsSummary' : IDL.Func([], [Type__5], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__2)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getConversation' : IDL.Func([IDL.Principal], [IDL.Vec(View__1)], ['query']),
   'getMessagesForCaller' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
+  'getMilestonesForIntern' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Vec(View__5)],
+      ['query'],
+    ),
+  'getMilestonesForProject' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(View__5)],
+      ['query'],
+    ),
+  'getNotificationsForCaller' : IDL.Func([], [IDL.Vec(View__4)], ['query']),
   'getProject' : IDL.Func([IDL.Nat], [IDL.Opt(View)], ['query']),
   'getProjectsByStatus' : IDL.Func([Type], [IDL.Vec(View)], ['query']),
   'getProjectsForIntern' : IDL.Func(
@@ -118,15 +183,18 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__2)], ['query']),
-  'getUserRole' : IDL.Func([IDL.Principal], [Type__2], ['query']),
+  'getUserRole' : IDL.Func([IDL.Principal], [Type__3], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'logActivity' : IDL.Func(
       [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
       [View__3],
       [],
     ),
+  'markAllNotificationsRead' : IDL.Func([], [], []),
   'markMessageRead' : IDL.Func([IDL.Nat], [], []),
+  'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'promoteToAdmin' : IDL.Func([IDL.Principal], [], []),
   'registerIntern' : IDL.Func(
       [IDL.Record({ 'bio' : IDL.Text, 'name' : IDL.Text, 'email' : IDL.Text })],
@@ -147,6 +215,7 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'updateMilestoneStatus' : IDL.Func([IDL.Nat, Type__1], [], []),
   'updateProfile' : IDL.Func(
       [
         IDL.Record({
@@ -169,6 +238,21 @@ export const idlFactory = ({ IDL }) => {
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const Type__1 = IDL.Variant({
+    'pending' : IDL.Null,
+    'completed' : IDL.Null,
+    'inProgress' : IDL.Null,
+  });
+  const View__5 = IDL.Record({
+    'id' : IDL.Nat,
+    'internPrincipal' : IDL.Principal,
+    'status' : Type__1,
+    'title' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'dueDate' : IDL.Text,
+    'description' : IDL.Text,
+    'projectId' : IDL.Nat,
   });
   const Type = IDL.Variant({
     'active' : IDL.Null,
@@ -194,7 +278,7 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'projectId' : IDL.Nat,
   });
-  const Type__1 = IDL.Variant({
+  const Type__2 = IDL.Variant({
     'active' : IDL.Null,
     'pending' : IDL.Null,
     'rejected' : IDL.Null,
@@ -204,8 +288,18 @@ export const idlFactory = ({ IDL }) => {
     'principal' : IDL.Principal,
     'name' : IDL.Text,
     'email' : IDL.Text,
-    'registrationStatus' : Type__1,
+    'registrationStatus' : Type__2,
     'skills' : IDL.Vec(IDL.Text),
+  });
+  const Type__5 = IDL.Record({
+    'totalActivities' : IDL.Nat,
+    'totalHours' : IDL.Nat,
+    'recentActivities' : IDL.Vec(View__3),
+    'completedMilestones' : IDL.Nat,
+    'hoursByProject' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Nat)),
+    'totalMilestones' : IDL.Nat,
+    'projectCount' : IDL.Nat,
+    'activeInternCount' : IDL.Nat,
   });
   const View__1 = IDL.Record({
     'id' : IDL.Nat,
@@ -215,7 +309,22 @@ export const idlFactory = ({ IDL }) => {
     'sender' : IDL.Principal,
     'timestamp' : IDL.Int,
   });
-  const Type__2 = IDL.Variant({
+  const Type__4 = IDL.Variant({
+    'projectAssigned' : IDL.Null,
+    'messageReceived' : IDL.Null,
+    'newApprovalRequest' : IDL.Null,
+    'milestoneUpdate' : IDL.Null,
+  });
+  const View__4 = IDL.Record({
+    'id' : IDL.Nat,
+    'notificationType' : Type__4,
+    'isRead' : IDL.Bool,
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'relatedId' : IDL.Nat,
+    'recipientPrincipal' : IDL.Principal,
+  });
+  const Type__3 = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
@@ -233,6 +342,18 @@ export const idlFactory = ({ IDL }) => {
           }),
         ],
         [],
+        [],
+      ),
+    'createMilestone' : IDL.Func(
+        [
+          IDL.Record({
+            'title' : IDL.Text,
+            'dueDate' : IDL.Text,
+            'description' : IDL.Text,
+            'projectId' : IDL.Nat,
+          }),
+        ],
+        [View__5],
         [],
       ),
     'createProject' : IDL.Func(
@@ -259,10 +380,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getAllActivities' : IDL.Func([], [IDL.Vec(View__3)], ['query']),
     'getAllInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+    'getAllMilestones' : IDL.Func([], [IDL.Vec(View__5)], ['query']),
     'getAllPendingInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
     'getAllProjects' : IDL.Func([], [IDL.Vec(View)], ['query']),
     'getAllRejectedInterns' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
     'getAllUsers' : IDL.Func([], [IDL.Vec(View__2)], ['query']),
+    'getAnalyticsSummary' : IDL.Func([], [Type__5], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(View__2)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getConversation' : IDL.Func(
@@ -271,6 +394,17 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getMessagesForCaller' : IDL.Func([], [IDL.Vec(View__1)], ['query']),
+    'getMilestonesForIntern' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(View__5)],
+        ['query'],
+      ),
+    'getMilestonesForProject' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(View__5)],
+        ['query'],
+      ),
+    'getNotificationsForCaller' : IDL.Func([], [IDL.Vec(View__4)], ['query']),
     'getProject' : IDL.Func([IDL.Nat], [IDL.Opt(View)], ['query']),
     'getProjectsByStatus' : IDL.Func([Type], [IDL.Vec(View)], ['query']),
     'getProjectsForIntern' : IDL.Func(
@@ -279,15 +413,18 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(View__2)], ['query']),
-    'getUserRole' : IDL.Func([IDL.Principal], [Type__2], ['query']),
+    'getUserRole' : IDL.Func([IDL.Principal], [Type__3], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'logActivity' : IDL.Func(
         [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
         [View__3],
         [],
       ),
+    'markAllNotificationsRead' : IDL.Func([], [], []),
     'markMessageRead' : IDL.Func([IDL.Nat], [], []),
+    'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'promoteToAdmin' : IDL.Func([IDL.Principal], [], []),
     'registerIntern' : IDL.Func(
         [
@@ -314,6 +451,7 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'updateMilestoneStatus' : IDL.Func([IDL.Nat, Type__1], [], []),
     'updateProfile' : IDL.Func(
         [
           IDL.Record({

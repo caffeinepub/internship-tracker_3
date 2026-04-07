@@ -6,6 +6,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,6 +28,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Clock,
   Flag,
   FolderKanban,
   Loader2,
@@ -29,13 +37,14 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { View as ProjectView, backendInterface } from "../../backend";
+import type { View as ProjectView } from "../../backend";
 import { Type as ProjectStatus, type Type } from "../../backend";
 import { useActor } from "../../hooks/useActor";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 
 interface MilestoneView {
   id: bigint;
+  internPrincipal: { toString(): string };
   projectId: bigint;
   title: string;
   description: string;
@@ -44,7 +53,18 @@ interface MilestoneView {
   createdAt: bigint;
 }
 
-interface ExtendedActor extends backendInterface {
+interface ExtensionRequest {
+  id: bigint;
+  projectId: bigint;
+  reason: string;
+  requestedEndDate: string;
+  status: string;
+}
+
+interface ExtendedActor {
+  getProjectsForIntern(intern: { toString(): string }): Promise<
+    import("../../backend").View[]
+  >;
   getMilestonesForProject(projectId: bigint): Promise<MilestoneView[]>;
   createMilestone(arg: {
     projectId: bigint;
@@ -53,6 +73,11 @@ interface ExtendedActor extends backendInterface {
     dueDate: string;
   }): Promise<MilestoneView>;
   updateMilestoneStatus(milestoneId: bigint, status: string): Promise<void>;
+  requestProjectExtension(
+    projectId: bigint,
+    reason: string,
+    requestedEndDate: string,
+  ): Promise<ExtensionRequest>;
 }
 
 function ProjectStatusBadge({ status }: { status: Type }) {
@@ -351,12 +376,127 @@ function MilestoneSection({ projectId, actor }: MilestoneSectionProps) {
   );
 }
 
+interface RequestExtensionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectId: bigint;
+  projectTitle: string;
+  actor: ExtendedActor | null;
+}
+
+function RequestExtensionDialog({
+  open,
+  onOpenChange,
+  projectId,
+  projectTitle,
+  actor,
+}: RequestExtensionDialogProps) {
+  const [reason, setReason] = useState("");
+  const [requestedEndDate, setRequestedEndDate] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleClose = () => {
+    onOpenChange(false);
+    setReason("");
+    setRequestedEndDate("");
+  };
+
+  const handleSubmit = async () => {
+    if (!actor || !reason.trim() || !requestedEndDate) return;
+    setSubmitting(true);
+    try {
+      await actor.requestProjectExtension(
+        projectId,
+        reason.trim(),
+        requestedEndDate,
+      );
+      toast.success("Extension request submitted successfully");
+      handleClose();
+    } catch {
+      toast.error("Failed to submit extension request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md" data-ocid="extension.dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display">
+            Request Project Extension
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            Requesting an extension for:{" "}
+            <span className="font-medium text-foreground">{projectTitle}</span>
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="ext-reason" className="text-xs font-medium">
+              Reason <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="ext-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Explain why you need an extension..."
+              className="min-h-[100px] text-sm resize-none"
+              data-ocid="extension.textarea"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ext-date" className="text-xs font-medium">
+              Requested End Date <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ext-date"
+              type="date"
+              value={requestedEndDate}
+              onChange={(e) => setRequestedEndDate(e.target.value)}
+              className="h-9 text-sm"
+              data-ocid="extension.input"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={submitting}
+            data-ocid="extension.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || !reason.trim() || !requestedEndDate}
+            data-ocid="extension.submit_button"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : null}
+            {submitting ? "Submitting..." : "Submit Request"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function MyProjectPage() {
   const { actor } = useActor();
   const ext = actor as ExtendedActor | null;
   const { identity } = useInternetIdentity();
   const [projects, setProjects] = useState<ProjectView[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Extension dialog state
+  const [extensionDialogOpen, setExtensionDialogOpen] = useState(false);
+  const [extensionProject, setExtensionProject] = useState<{
+    id: bigint;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!ext || !identity) return;
@@ -373,6 +513,11 @@ export default function MyProjectPage() {
       }
     })();
   }, [ext, identity]);
+
+  const openExtensionDialog = (project: ProjectView) => {
+    setExtensionProject({ id: project.id, title: project.title });
+    setExtensionDialogOpen(true);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -407,11 +552,13 @@ export default function MyProjectPage() {
               className="shadow-card overflow-hidden"
             >
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <CardTitle className="font-display text-lg">
                     {project.title}
                   </CardTitle>
-                  <ProjectStatusBadge status={project.status} />
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <ProjectStatusBadge status={project.status} />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pb-0">
@@ -420,7 +567,7 @@ export default function MyProjectPage() {
                     {project.description}
                   </p>
                 )}
-                <div className="flex flex-wrap gap-4 pt-2 border-t border-border">
+                <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-border">
                   {(project.startDate || project.endDate) && (
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
@@ -437,12 +584,34 @@ export default function MyProjectPage() {
                       {project.assignedInterns.length !== 1 ? "s" : ""}
                     </span>
                   </div>
+                  <div className="ml-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openExtensionDialog(project)}
+                      className="h-7 px-2.5 text-xs gap-1.5"
+                      data-ocid="extension.open_modal_button"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Request Extension
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
               <MilestoneSection projectId={project.id} actor={ext} />
             </Card>
           ))}
         </div>
+      )}
+
+      {extensionProject && (
+        <RequestExtensionDialog
+          open={extensionDialogOpen}
+          onOpenChange={setExtensionDialogOpen}
+          projectId={extensionProject.id}
+          projectTitle={extensionProject.title}
+          actor={ext}
+        />
       )}
     </div>
   );

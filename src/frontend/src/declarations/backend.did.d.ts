@@ -13,12 +13,29 @@ import type { Principal } from '@icp-sdk/core/principal';
 export type Type = { 'active' : null } |
   { 'completed' : null } |
   { 'planning' : null };
-export type Type__1 = { 'active' : null } |
+export type Type__1 = { 'pending' : null } |
+  { 'completed' : null } |
+  { 'inProgress' : null };
+export type Type__2 = { 'active' : null } |
   { 'pending' : null } |
   { 'rejected' : null };
-export type Type__2 = { 'admin' : null } |
+export type Type__3 = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export type Type__4 = { 'projectAssigned' : null } |
+  { 'messageReceived' : null } |
+  { 'newApprovalRequest' : null } |
+  { 'milestoneUpdate' : null };
+export interface Type__5 {
+  'totalActivities' : bigint,
+  'totalHours' : bigint,
+  'recentActivities' : Array<View__3>,
+  'completedMilestones' : bigint,
+  'hoursByProject' : Array<[bigint, bigint]>,
+  'totalMilestones' : bigint,
+  'projectCount' : bigint,
+  'activeInternCount' : bigint,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
@@ -44,7 +61,7 @@ export interface View__2 {
   'principal' : Principal,
   'name' : string,
   'email' : string,
-  'registrationStatus' : Type__1,
+  'registrationStatus' : Type__2,
   'skills' : Array<string>,
 }
 export interface View__3 {
@@ -57,6 +74,25 @@ export interface View__3 {
   'description' : string,
   'projectId' : bigint,
 }
+export interface View__4 {
+  'id' : bigint,
+  'notificationType' : Type__4,
+  'isRead' : boolean,
+  'message' : string,
+  'timestamp' : bigint,
+  'relatedId' : bigint,
+  'recipientPrincipal' : Principal,
+}
+export interface View__5 {
+  'id' : bigint,
+  'internPrincipal' : Principal,
+  'status' : Type__1,
+  'title' : string,
+  'createdAt' : bigint,
+  'dueDate' : string,
+  'description' : string,
+  'projectId' : bigint,
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'approveInternRegistration' : ActorMethod<[Principal], undefined>,
@@ -64,6 +100,17 @@ export interface _SERVICE {
   'assignInternToProject' : ActorMethod<
     [{ 'internPrincipal' : Principal, 'projectId' : bigint }],
     undefined
+  >,
+  'createMilestone' : ActorMethod<
+    [
+      {
+        'title' : string,
+        'dueDate' : string,
+        'description' : string,
+        'projectId' : bigint,
+      },
+    ],
+    View__5
   >,
   'createProject' : ActorMethod<
     [
@@ -80,26 +127,34 @@ export interface _SERVICE {
   'getActivitiesForProject' : ActorMethod<[bigint], Array<View__3>>,
   'getAllActivities' : ActorMethod<[], Array<View__3>>,
   'getAllInterns' : ActorMethod<[], Array<View__2>>,
+  'getAllMilestones' : ActorMethod<[], Array<View__5>>,
   'getAllPendingInterns' : ActorMethod<[], Array<View__2>>,
   'getAllProjects' : ActorMethod<[], Array<View>>,
   'getAllRejectedInterns' : ActorMethod<[], Array<View__2>>,
   'getAllUsers' : ActorMethod<[], Array<View__2>>,
+  'getAnalyticsSummary' : ActorMethod<[], Type__5>,
   'getCallerUserProfile' : ActorMethod<[], [] | [View__2]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getConversation' : ActorMethod<[Principal], Array<View__1>>,
   'getMessagesForCaller' : ActorMethod<[], Array<View__1>>,
+  'getMilestonesForIntern' : ActorMethod<[Principal], Array<View__5>>,
+  'getMilestonesForProject' : ActorMethod<[bigint], Array<View__5>>,
+  'getNotificationsForCaller' : ActorMethod<[], Array<View__4>>,
   'getProject' : ActorMethod<[bigint], [] | [View]>,
   'getProjectsByStatus' : ActorMethod<[Type], Array<View>>,
   'getProjectsForIntern' : ActorMethod<[Principal], Array<View>>,
   'getUnreadCount' : ActorMethod<[], bigint>,
+  'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [View__2]>,
-  'getUserRole' : ActorMethod<[Principal], Type__2>,
+  'getUserRole' : ActorMethod<[Principal], Type__3>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'logActivity' : ActorMethod<
     [bigint, string, string, string, bigint],
     View__3
   >,
+  'markAllNotificationsRead' : ActorMethod<[], undefined>,
   'markMessageRead' : ActorMethod<[bigint], undefined>,
+  'markNotificationRead' : ActorMethod<[bigint], undefined>,
   'promoteToAdmin' : ActorMethod<[Principal], undefined>,
   'registerIntern' : ActorMethod<
     [{ 'bio' : string, 'name' : string, 'email' : string }],
@@ -113,6 +168,7 @@ export interface _SERVICE {
     [{ 'internPrincipal' : Principal, 'projectId' : bigint }],
     undefined
   >,
+  'updateMilestoneStatus' : ActorMethod<[bigint, Type__1], undefined>,
   'updateProfile' : ActorMethod<
     [
       {
